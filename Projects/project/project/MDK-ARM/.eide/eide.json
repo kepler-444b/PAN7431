@@ -44,22 +44,7 @@
         ]
       },
       {
-        "name": "BSP",
-        "files": [],
-        "folders": [
-          {
-            "name": "py32f030xx_Start_Kit",
-            "files": [
-              {
-                "path": "../../../../Drivers/BSP/PY32F030xx_Start_Kit/py32f030xx_Start_Kit.c"
-              }
-            ],
-            "folders": []
-          }
-        ]
-      },
-      {
-        "name": "Drivers",
+        "name": "Source",
         "files": [],
         "folders": [
           {
@@ -245,10 +230,16 @@
             "path": "../../device/panel.h"
           },
           {
-            "path": "../../device/tran_device.c"
+            "path": "../../device/setter.c"
           },
           {
-            "path": "../../device/tran_device.h"
+            "path": "../../device/setter.h"
+          },
+          {
+            "path": "../../device/repeater.c"
+          },
+          {
+            "path": "../../device/repeater.h"
           }
         ],
         "folders": []

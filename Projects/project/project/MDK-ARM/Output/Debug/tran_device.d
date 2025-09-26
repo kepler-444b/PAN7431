@@ -1,5 +1,5 @@
-./output/debug/tran_device.o: ..\..\device\tran_device.c \
-  ..\..\device\tran_device.h ..\radio\pan211.h ..\Inc\main.h \
+./output/debug/SETTER.o: ..\..\device\SETTER.c \
+  ..\..\device\SETTER.h ..\radio\pan211.h ..\Inc\main.h \
   ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal.h \
   ..\Inc\py32f0xx_hal_conf.h \
   ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_rcc.h \
@@ -26,7 +26,7 @@
   ..\..\device\..\bsp\..\app\gpio.h \
   ..\..\device\..\bsp\..\device\device_manager.h \
   ..\..\device\..\bsp\..\device\panel.h \
-  ..\..\device\..\bsp\..\device\tran_device.h \
+  ..\..\device\..\bsp\..\device\SETTER.h \
   ..\..\device\..\bsp\bsp_uart.h ..\..\device\..\bsp\bsp_timer.h \
   ..\..\device\..\app\protocol.h ..\..\device\..\app\eventbus.h \
   ..\..\device\..\app\app.h

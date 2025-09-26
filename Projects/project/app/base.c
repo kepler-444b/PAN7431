@@ -102,3 +102,38 @@ uint8_t app_calculate_std_dev(const uint8_t *array, uint8_t count, uint8_t mean)
     }
     return (uint8_t)rounded;
 }
+
+uint16_t app_get_crc(uint8_t *buffer, uint8_t len)
+{
+    uint16_t wcrc = 0XFFFF;
+    uint8_t temp;
+    uint8_t CRC_L;
+    uint8_t CRC_H;
+    uint16_t i = 0, j = 0;
+    for (i = 0; i < len; i++) {
+        temp = *buffer & 0X00FF;
+        buffer++;
+        wcrc ^= temp;
+        for (j = 0; j < 8; j++) {
+            if (wcrc & 0X0001) {
+                wcrc >>= 1;
+                wcrc ^= 0XA001;
+            } else {
+                wcrc >>= 1;
+            }
+        }
+    }
+    CRC_L = wcrc & 0xff;
+    CRC_H = wcrc >> 8;
+    return ((CRC_L << 8) | CRC_H);
+}
+
+// CRC check for the panel
+uint8_t panel_crc(uint8_t *rxbuf, uint8_t len)
+{
+    uint8_t sum = 0;
+    for (uint8_t i = 0; i < len; i++) {
+        sum += rxbuf[i];
+    }
+    return (uint8_t)(0xFF - sum + 1);
+}

@@ -8,9 +8,10 @@ typedef enum {
     EVENT_PANEL_RX,        // 面板接收有效帧
     EVENT_PANEL_RX_MY,
     EVENT_SIMULATE_KEY,    // 模拟按键
-    EVENT_SWITCH_CHANNEL0, // 切换信道0
+
+    EVENT_REQUEST_NETWORK, // 申请组网
     EVENT_UART1_RX,        // UART1接收
-    EVENT_LED_BLINK,
+    EVENT_LED_BLINK,    
 
     // 添加更多事件类型...
     EVENT_COUNT // 自动计算事件数量

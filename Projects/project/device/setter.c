@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
-#include "tran_device.h"
+#include "setter.h"
 #include "pan211.h"
 #include "../bsp/bsp_pcb.h"
 #include "../bsp/bsp_uart.h"
@@ -9,9 +9,9 @@
 #include "../app/eventbus.h"
 #include "../app/app.h"
 
-#if defined TRAN_DEVICE
+#if defined SETTER
 
-#define TRAN_DEVICE_HEAD(arr, third_byte) \
+#define SETTER_HEAD(arr, third_byte) \
     do {                                  \
         (arr)[0] = 0xAC;                  \
         (arr)[1] = 0x85;                  \
@@ -52,12 +52,12 @@ static void tran_delay_stop_rassi(void *arg);
 static void recv_from_rf(rf_frame_t *buf);
 static void recv_from_soft(usart1_rx_buf_t *buf);
 
-void app_tran_device_init(void)
+void app_setter_init(void)
 {
-    bsp_tran_device_init();
+    bsp_setter_init();
     app_usart1_rx_callback(recv_from_soft);
     app_rf_rx_callback(recv_from_rf);
-    APP_PRINTF("app_tran_device_init\n");
+    APP_PRINTF("app_SETTER_init\n");
 }
 
 bool rssi_is_enabled(void)
@@ -106,7 +106,7 @@ void rssi_update(void)
         int abs_value     = abs(local_max_rssi);
         uint8_t new_value = (uint8_t)abs_value;
         static uint8_t rssi_frame[7];
-        TRAN_DEVICE_HEAD(rssi_frame, SourceData);
+        SETTER_HEAD(rssi_frame, SourceData);
         rssi_frame[3] = 0x03;
         rssi_frame[4] = new_value;
         rssi_frame[5] = 0x0D;
@@ -248,7 +248,7 @@ static void recv_from_rf(rf_frame_t *buf)
         APP_PRINTF("rssi_enabled = true\n");
         return;
     } else {
-        TRAN_DEVICE_HEAD(recv_from_rfware, SourceData);
+        SETTER_HEAD(recv_from_rfware, SourceData);
         recv_from_rfware[3] = 0x40;
         uint8_t new_len     = len + 15;
         memcpy(&recv_from_rfware[4], buf->rf_data, new_len);
@@ -274,7 +274,7 @@ static void recv_from_rf(rf_frame_t *buf)
         case TestFrame:
         case FindSB:
         case ForwardData:
-            TRAN_DEVICE_HEAD(recv_from_rfware, SourceData);
+            SETTER_HEAD(recv_from_rfware, SourceData);
             break;
         default:
             return;

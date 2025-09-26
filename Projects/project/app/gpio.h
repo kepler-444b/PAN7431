@@ -7,7 +7,6 @@
 // 检查GPIO是否有效
 #define GPIO_IS_VALID(obj) ((obj).pin || (obj).port)
 
-// 设置GPIO
 #define APP_SET_GPIO(obj, status)                   \
     do {                                            \
         if (status) {                               \
@@ -16,6 +15,8 @@
             (obj.port)->BRR = (uint32_t)(obj.pin);  \
         }                                           \
     } while (0)
+
+#define APP_GET_GPIO(obj) (((obj.port)->IDR & (obj.pin)) ? true : false)
 
 typedef struct {
     GPIO_TypeDef *port;

@@ -12,7 +12,7 @@
 #include "../bsp/bsp_tm5020a.h"
 #include "../bsp/bsp_zero.h"
 
-#if defined PANEL_KEY
+#if defined PANEL
 
 // 函数参数
 #define FUNC_PARAMS      panel_frame_t *data, const panel_cfg_t *temp_cfg, panel_status_t *temp_status, data_source src
@@ -195,7 +195,7 @@ static void process_panel_adc(ADC_PARAMS)
         // 处理长按
         if (temp_common->key_long_press && ++temp_common->key_long_count >= LONG_PRESS) {
             // app_send_cmd(0, 0, APPLY_CONFIG, 0x00, is_ex);
-            app_eventbus_publish(EVENT_SWITCH_CHANNEL0, NULL);
+            app_eventbus_publish(EVENT_REQUEST_NETWORK, NULL);
             temp_common->key_long_press = false;
         }
     }
@@ -400,7 +400,7 @@ static void panel_event_handler(event_type_e event, void *params)
         case EVENT_PANEL_RX: {
             panel_frame_t *my_panel_frame = (panel_frame_t *)params;
             // APP_PRINTF_BUF("EVENT_PANEL_RX", my_panel_frame->data, my_panel_frame->length);
-            panel_data_cb(my_panel_frame, other_deivce);
+            panel_data_cb(my_panel_frame, OTHER);
 
         } break;
         case EVENT_PANEL_RX_MY: {
@@ -409,7 +409,7 @@ static void panel_event_handler(event_type_e event, void *params)
             my_panel_frame->length += 1;
 
             // APP_PRINTF_BUF("EVENT_PANEL_RX_MY", my_panel_frame->data, my_panel_frame->length);
-            panel_data_cb(my_panel_frame, this_device);
+            panel_data_cb(my_panel_frame, THIS);
 
         } break;
         case EVENT_SIMULATE_KEY: {
@@ -479,9 +479,8 @@ static void panel_all_close(FUNC_PARAMS) // 总关
                 break;
             case SCENE_MODE:
             case LIGHT_MODE:
-
             case CLEAN_ROOM:
-                // panel_fast_exe(p_status, 0b00010110 | 0x00);
+                panel_fast_exe(p_status, 0b00010110 | 0x00);
                 break;
             case CURTAIN_CLOSE: // 勾选"总关"的窗帘关
                 PROCESS_INNER(temp_cfg, temp_status, {
@@ -764,7 +763,7 @@ static void panel_light_mode(FUNC_PARAMS) // 灯控模式
         if (data->data[3] != p_cfg->group && data->data[3] != 0xFF)
             continue;
 
-        if (src != this_device && data->data[3] == 0x00)
+        if (src != THIS && data->data[3] == 0x00)
             continue;
 
         panel_fast_exe(p_status, 0x16 | (data->data[2] & 0x01));

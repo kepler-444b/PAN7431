@@ -11,9 +11,9 @@
 #define CLR_TMR_ACTIVE(id) (s_tmr_active_bitmap &= ~(1U << (id)))
 #define IS_TMR_ACTIVE(id)  ((s_tmr_active_bitmap >> (id)) & 1U)
 
-static SOFT_TMR s_t_tmr[MAX_TMR_COUNT] = {0}; // 定于软件定时器结构体变量
+static SOFT_TMR s_t_tmr[MAX_TMR_COUNT] = {0};
 
-static __IO int32_t g_i_run_time = 0; // 全局运行时间,单位1ms 最长可以表示 24.85天,如果你的产品连续运行时间超过这个数,则必须考虑溢出问题
+static __IO int32_t g_i_run_time = 0; // 全局运行时间,单位1ms 最长可以表示 24.85天
 
 static __IO uint32_t s_tmr_active_bitmap = 0;
 TIM_HandleTypeDef sTimxHandle            = {0};
@@ -43,11 +43,11 @@ static void __bsp_timer_init(void)
 
 void bsp_timer_init(void)
 {
-    for (uint8_t i = 0; i < MAX_TMR_COUNT; i++) { // 清零所有的软件定时器
+    for (uint8_t i = 0; i < MAX_TMR_COUNT; i++) {
         s_t_tmr[i].Count   = 0;
         s_t_tmr[i].PreLoad = 0;
         s_t_tmr[i].Flag    = 0;
-        s_t_tmr[i].Mode    = TMR_ONCE_MODE; // 缺省是1次性工作模式
+        s_t_tmr[i].Mode    = TMR_ONCE_MODE;
     }
     __bsp_timer_init();
 }

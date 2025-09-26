@@ -423,17 +423,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>BSP/py32f030xx_Start_Kit</GroupName>
-          <Files>
-            <File>
-              <FileName>py32f030xx_Start_Kit.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\..\Drivers\BSP\PY32F030xx_Start_Kit\py32f030xx_Start_Kit.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Drivers/PY32F0xx_HAL_Driver</GroupName>
+          <GroupName>Source</GroupName>
           <Files>
             <File>
               <FileName>py32f0xx_hal.c</FileName>
@@ -706,14 +696,24 @@
               <FilePath>..\..\device\panel.h</FilePath>
             </File>
             <File>
-              <FileName>tran_device.c</FileName>
+              <FileName>setter.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\device\tran_device.c</FilePath>
+              <FilePath>..\..\device\setter.c</FilePath>
             </File>
             <File>
-              <FileName>tran_device.h</FileName>
+              <FileName>setter.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\device\tran_device.h</FilePath>
+              <FilePath>..\..\device\setter.h</FilePath>
+            </File>
+            <File>
+              <FileName>repeater.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\device\repeater.c</FilePath>
+            </File>
+            <File>
+              <FileName>repeater.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\device\repeater.h</FilePath>
             </File>
           </Files>
         </Group>

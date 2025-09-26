@@ -32,6 +32,7 @@
 #endif
 
 void bsp_panel_init(void);
-void bsp_tran_device_init(void);
+void bsp_setter_init(void);
+void bsp_repeater_init(void);
 
 #endif

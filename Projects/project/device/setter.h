@@ -1,8 +1,8 @@
-#ifndef _TRAN_DEVICE_H_
-#define _TRAN_DEVICE_H_
+#ifndef _SETTER_H_
+#define _SETTER_H_
 #include <stdbool.h>
 
-void app_tran_device_init(void);
+void app_setter_init(void);
 void rssi_update(void);
 bool rssi_is_enabled(void);
 

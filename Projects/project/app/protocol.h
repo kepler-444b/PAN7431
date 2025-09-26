@@ -95,6 +95,5 @@ extern uint8_t my_seq;
 void app_protocol_init(void);
 void app_rf_tx(rf_frame_t *rf_tx);
 void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, uint8_t cmd_type);
-uint16_t app_get_crc(uint8_t *buffer, uint8_t len);
 
 #endif

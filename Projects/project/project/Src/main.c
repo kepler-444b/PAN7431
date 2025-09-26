@@ -3,11 +3,11 @@
 #include "../../app/app.h"
 #include "../../app/iwdg.h"
 #include "../../app/base.h"
+#include "../../app/eventbus.h"
+#include "../../app/config.h"
 #include "../../app/protocol.h"
 #include "../../bsp/bsp_uart.h"
 #include "../../bsp/bsp_timer.h"
-#include "../../app/eventbus.h"
-#include "../../app/config.h"
 #include "../../device/device_manager.h"
 
 static rf_frame_t my_rf_rx;
@@ -27,11 +27,10 @@ int main(void)
     PAN211_ClearIRQFlags(0xFF);
     bsp_uart_init();
 
-#ifndef TRAN_DEVICE
-    PAN211_WriteRegs(0x0F, DEFAULT_ADDR, 5);
+#if defined PANEL
     app_load_config(CFG);
-    app_load_config(REG);
 #endif
+    app_load_config(REG);
     bsp_timer_init();
     app_iwdg_init();
     app_eventbus_init();
@@ -44,7 +43,7 @@ int main(void)
     while (1) {
         bsp_timer_poll();
         app_eventbus_poll();
-#if defined TRAN_DEVICE
+#if defined SETTER
         if (!rssi_is_enabled()) {
 #endif
             if (IRQDetected()) {
@@ -64,7 +63,7 @@ int main(void)
                 }
                 PAN211_ClearIRQFlags(0xFF);
             }
-#if defined TRAN_DEVICE
+#if defined SETTER
         } else if (rssi_is_enabled()) {
             rssi_update();
         }

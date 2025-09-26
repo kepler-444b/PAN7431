@@ -4,7 +4,6 @@
 ".\output\debug\main.o"
 ".\output\debug\py32f0xx_hal_msp.o"
 ".\output\debug\py32f0xx_it.o"
-".\output\debug\py32f030xx_start_kit.o"
 ".\output\debug\py32f0xx_hal.o"
 ".\output\debug\py32f0xx_hal_adc.o"
 ".\output\debug\py32f0xx_hal_cortex.o"
@@ -34,7 +33,8 @@
 ".\output\debug\bsp_zero.o"
 ".\output\debug\device_manager.o"
 ".\output\debug\panel.o"
-".\output\debug\tran_device.o"
+".\output\debug\setter.o"
+".\output\debug\repeater.o"
 --library_type=microlib --strict --scatter ".\Output\Debug\Project.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

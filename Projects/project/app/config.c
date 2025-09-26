@@ -8,7 +8,7 @@
 #include "../app/protocol.h"
 #include "../app/eventbus.h"
 
-#if defined PANEL_KEY
+#if defined PANEL
 static panel_cfg_t my_panel_cfg[KEY_NUMBER] = {0};
 
 #endif
@@ -18,7 +18,7 @@ static reg_t my_reg = {0};
 static uint8_t DEF_PANEL_CONFIG[38] = {0xF2, 0x0E, 0x0E, 0x0E, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x21, 0x21, 0x21, 0x00, 0x00,
                                        0x00, 0x00, 0x0E, 0x00, 0x00, 0x44, 0x00, 0x21, 0x00, 0x0E, 0x00, 0x00, 0x21, 0x00, 0xB0, 0x21, 0x84, 0x00, 0x00};
 
-#if defined PANEL_KEY
+#if defined PANEL
 static void app_load_panel_a11(uint8_t *data);
 static void app_panel_get_relay_num(uint8_t *data, const gpio_pin_t *relay_map);
 #endif
@@ -72,7 +72,7 @@ void app_load_config(cfg_addr addr)
                 new_data[2] = 0x03; // room_h
                 new_data[3] = 0x04; // room_l
                 new_data[4] = 0x05; // forward_en
-#if defined PANEL_KEY
+#if defined PANEL
                 new_data[5] = KEY_NUMBER; // key_number
 #endif
             } else {
@@ -164,7 +164,7 @@ static void app_load_panel_a11(uint8_t *data)
 #endif
 
 // Bind the relay's pins to key
-#if defined PANEL_KEY
+#if defined PANEL
 static void app_panel_get_relay_num(uint8_t *data, const gpio_pin_t *relay_map)
 {
 

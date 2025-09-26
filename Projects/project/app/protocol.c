@@ -7,27 +7,24 @@
 #include "../app/config.h"
 #include "../bsp/bsp_timer.h"
 
-uint16_t app_get_crc(uint8_t *buffer, uint8_t len);
-uint8_t panel_crc(uint8_t *rxbuf, uint8_t len);
-void app_proto_check(usart1_rx_buf_t *buf);
 void app_rf_rx_check(rf_frame_t *buf);
+void app_usart_rx_check(usart1_rx_buf_t *buf);
 static void protocol_event_handler(event_type_e event, void *params);
 static void app_save_cfg(uint8_t *cfg_data, uint8_t length);
 static void app_save_reg(uint8_t reg_addr, uint8_t *reg_data, uint8_t length);
-static void app_delay_switch(void *arg);
-static void delay_find_ack(void *arg);
-static void delay_tran_data(void *arg);
 static void app_creat_frame(rf_frame_t *frame, frame_type type, const reg_t *reg);
+static void delay_send_find_ack(void *arg);
+static void delay_forward_data(void *arg);
+static void delay_switch_channel(void *arg);
 
 static uint8_t last_data[52] = {0};
-
-uint8_t my_seq = 0;
+uint8_t my_seq               = 0;
 
 void app_protocol_init(void)
 {
-#ifndef TRAN_DEVICE
+#ifndef SETTER
     app_rf_rx_callback(app_rf_rx_check);
-    app_usart1_rx_callback(app_proto_check);
+    app_usart1_rx_callback(app_usart_rx_check);
 #endif
     app_eventbus_subscribe(protocol_event_handler);
 }
@@ -35,7 +32,7 @@ void app_protocol_init(void)
 static void protocol_event_handler(event_type_e event, void *params)
 {
     switch (event) {
-        case EVENT_SWITCH_CHANNEL0: {
+        case EVENT_REQUEST_NETWORK: {
             static rf_frame_t rf_Request;
             reg_t *Request_cfg = app_get_reg();
 
@@ -47,7 +44,7 @@ static void protocol_event_handler(event_type_e event, void *params)
             rf_Request.rf_len = RF_PAYLOAD;
             app_rf_tx(&rf_Request);
             APP_PRINTF_BUF("Request_tx_ch1", rf_Request.rf_data, 22);
-            bsp_start_timer(1, 1000, app_delay_switch, NULL, TMR_ONCE_MODE);
+            bsp_start_timer(1, 1000, delay_switch_channel, NULL, TMR_ONCE_MODE);
 
         } break;
         default:
@@ -55,12 +52,12 @@ static void protocol_event_handler(event_type_e event, void *params)
     }
 }
 
-void app_proto_check(usart1_rx_buf_t *buf)
+void app_usart_rx_check(usart1_rx_buf_t *buf)
 {
     static rf_frame_t temp_rf_frame;
     memset(temp_rf_frame.rf_data, 0, sizeof(temp_rf_frame.rf_data));
     temp_rf_frame.rf_len = 0;
-#if defined TRAN_DEVICE
+#if defined SETTER
     memcpy(temp_rf_frame.rf_data, buf->data, buf->len);
     temp_rf_frame.rf_len = buf->len;
     app_eventbus_publish(EVENT_UART1_RX, &temp_rf_frame);
@@ -157,7 +154,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                 rf_rx.rf_len = RF_PAYLOAD;
 
                 // Start delayed transmission
-                bsp_start_timer(6, delay_forward, delay_tran_data, &rf_rx, TMR_ONCE_MODE);
+                bsp_start_timer(6, delay_forward, delay_forward_data, &rf_rx, TMR_ONCE_MODE);
 
                 // Update last data cache
                 memcpy(last_data, data_p, data_len);
@@ -212,7 +209,7 @@ void app_rf_rx_check(rf_frame_t *buf)
             rf_rx.rf_len = RF_PAYLOAD;
 
             uint32_t delay_ms = (uint32_t)(reg->zuwflag * 50 + BASE_DELAY);
-            bsp_start_timer(5, delay_ms, delay_find_ack, &rf_rx, TMR_ONCE_MODE);
+            bsp_start_timer(5, delay_ms, delay_send_find_ack, &rf_rx, TMR_ONCE_MODE);
         } break;
         default:
             return;
@@ -220,13 +217,13 @@ void app_rf_rx_check(rf_frame_t *buf)
 }
 
 // Recover to the prior channel after a specified delay
-static void app_delay_switch(void *arg)
+static void delay_switch_channel(void *arg)
 {
     PAN211_SetChannel(app_get_reg()->channel);
     APP_PRINTF("----switch_channel:%d----\n", app_get_reg()->channel);
 }
 
-static void delay_find_ack(void *arg)
+static void delay_send_find_ack(void *arg)
 {
     APP_PRINTF("FindSB\n");
     rf_frame_t *frame = (rf_frame_t *)arg;
@@ -234,7 +231,7 @@ static void delay_find_ack(void *arg)
     bsp_stop_timer(5);
 }
 
-static void delay_tran_data(void *arg)
+static void delay_forward_data(void *arg)
 {
     rf_frame_t *frame = (rf_frame_t *)arg;
     app_rf_tx(frame);
@@ -251,28 +248,9 @@ void app_rf_tx(rf_frame_t *rf_tx)
     PAN211_TxStart();
     while (!IRQDetected());
     PAN211_TxStart();
-#if 0
-    // __disable_irq();
-    if (tran == true) {
-        PAN211_SetTxAddr(TRAN_ADDR, 5);
-    } else if (tran == false) {
-        PAN211_SetTxAddr(COM_DEVICE, 5);
-    }
-    PAN211_WriteFIFO(rf_tx->rf_data, rf_tx->rf_len);
-    // PAN211_SetTxAddr(TEST_ADDR1, 5);
-    PAN211_TxStart();
-    // PAN211_TxStart();
-    PAN211_TxStart();
-    // __enable_irq();
-    // while (!IRQDetected()); // Wait for send completion
-    // PAN211_TxStart();
-    // while (!IRQDetected());
-    // // PAN211_SetTxAddr(TEST_ADDR3, 5);
-    // PAN211_TxStart();
-#endif
 }
 
-#if defined PANEL_KEY
+#if defined PANEL
 // 构造按键数据帧
 void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, uint8_t cmd_type)
 {
@@ -310,7 +288,7 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     send_frame.data[5] = panel_crc(send_frame.data, 5);
     send_frame.length  = 8;
 
-    app_eventbus_publish(EVENT_PANEL_RX, &send_frame);
+    app_eventbus_publish(EVENT_PANEL_RX_MY, &send_frame);
 
     static rf_frame_t rf_tx;
     reg_t *temp_reg = app_get_reg();
@@ -373,7 +351,6 @@ static void app_save_reg(uint8_t reg_addr, uint8_t *reg_data, uint8_t length)
     } else {
         return;
     }
-
     // From register mapping to array
     static const uint8_t reg_to_arr[] = {[4] = 0, [5] = 1, [6] = 2, [7] = 3, [8] = 4, [12] = 5};
 
@@ -408,39 +385,4 @@ static void app_save_reg(uint8_t reg_addr, uint8_t *reg_data, uint8_t length)
         __enable_irq();
         app_load_config(REG);
     }
-}
-
-uint16_t app_get_crc(uint8_t *buffer, uint8_t len)
-{
-    uint16_t wcrc = 0XFFFF;
-    uint8_t temp;
-    uint8_t CRC_L;
-    uint8_t CRC_H;
-    uint16_t i = 0, j = 0;
-    for (i = 0; i < len; i++) {
-        temp = *buffer & 0X00FF;
-        buffer++;
-        wcrc ^= temp;
-        for (j = 0; j < 8; j++) {
-            if (wcrc & 0X0001) {
-                wcrc >>= 1;
-                wcrc ^= 0XA001;
-            } else {
-                wcrc >>= 1;
-            }
-        }
-    }
-    CRC_L = wcrc & 0xff;
-    CRC_H = wcrc >> 8;
-    return ((CRC_L << 8) | CRC_H);
-}
-
-// CRC check for the panel
-uint8_t panel_crc(uint8_t *rxbuf, uint8_t len)
-{
-    uint8_t sum = 0;
-    for (uint8_t i = 0; i < len; i++) {
-        sum += rxbuf[i];
-    }
-    return (uint8_t)(0xFF - sum + 1);
 }
