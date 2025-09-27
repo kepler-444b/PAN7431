@@ -10,8 +10,8 @@
 
 #if defined PANEL
 #define RELAY_NUMBER 4
-#define PANEL_6KEY_A11
-// #define PANEL_4KEY_A11
+// #define PANEL_6KEY_A11
+#define PANEL_4KEY_A11
 
 #if defined PANEL_6KEY_A11
 #define KEY_NUMBER 6

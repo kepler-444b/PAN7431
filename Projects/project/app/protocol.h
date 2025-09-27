@@ -91,7 +91,6 @@ typedef struct
     uint8_t data[32];
     uint8_t length;
 } panel_frame_t;
-extern uint8_t my_seq;
 void app_protocol_init(void);
 void app_rf_tx(rf_frame_t *rf_tx);
 void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, uint8_t cmd_type);

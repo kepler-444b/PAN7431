@@ -18,7 +18,6 @@ static void delay_forward_data(void *arg);
 static void delay_switch_channel(void *arg);
 
 static uint8_t last_data[52] = {0};
-uint8_t my_seq               = 0;
 
 void app_protocol_init(void)
 {
@@ -239,10 +238,7 @@ static void delay_forward_data(void *arg)
 
 void app_rf_tx(rf_frame_t *rf_tx)
 {
-    my_seq++;
-    rf_tx->rf_data[rf_tx->rf_len - 1] = my_seq;
     PAN211_WriteFIFO(rf_tx->rf_data, rf_tx->rf_len);
-
     PAN211_TxStart();
     while (!IRQDetected());
     PAN211_TxStart();

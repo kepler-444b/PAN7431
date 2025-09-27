@@ -48,14 +48,11 @@ int main(void)
 #endif
             if (IRQDetected()) {
                 if (PAN211_GetIRQFlags() & RF_IT_RX_IRQ) {
+
                     PAN211_ReadFIFO(my_rf_rx.rf_data, RF_PAYLOAD);
                     my_rf_rx.rf_len = RF_PAYLOAD;
-                    if (my_seq != my_rf_rx.rf_data[RF_PAYLOAD - 1]) {
-                        my_seq = my_rf_rx.rf_data[RF_PAYLOAD - 1];
-                        APP_PRINTF("seq:%d\n", my_rf_rx.rf_data[RF_PAYLOAD - 1]);
-                        if (g_rf_rx) {
-                            g_rf_rx(&my_rf_rx);
-                        }
+                    if (g_rf_rx) {
+                        g_rf_rx(&my_rf_rx);
                     }
                 } else if (PAN211_GetIRQFlags() & RF_IT_TX_IRQ) {
                     PAN211_RxStart(); // Switch to RX mode

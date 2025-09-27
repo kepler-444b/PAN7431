@@ -757,16 +757,13 @@ static void panel_scene_mode(FUNC_PARAMS) // 场景模式
 static void panel_light_mode(FUNC_PARAMS) // 灯控模式
 {
     PROCESS_OUTER(temp_cfg, temp_status, {
-        if (p_cfg->func != LIGHT_MODE)
+        if (p_cfg->func != LIGHT_MODE ||
+            (data->data[3] != p_cfg->group && data->data[3] != 0xFF)) {
             continue;
-
-        if (data->data[3] != p_cfg->group && data->data[3] != 0xFF)
-            continue;
-
+        }
         if (src != THIS && data->data[3] == 0x00)
             continue;
-
-        panel_fast_exe(p_status, 0x16 | (data->data[2] & 0x01));
+        panel_fast_exe(p_status, 0b00010110 | (data->data[2] & 0x01));
     });
 }
 
