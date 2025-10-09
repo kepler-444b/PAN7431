@@ -56,6 +56,7 @@ void app_usart_rx_check(usart1_rx_buf_t *buf)
     static rf_frame_t temp_rf_frame;
     memset(temp_rf_frame.rf_data, 0, sizeof(temp_rf_frame.rf_data));
     temp_rf_frame.rf_len = 0;
+    APP_PRINTF_BUF("buf", buf->data, buf->len);
 #if defined SETTER
     memcpy(temp_rf_frame.rf_data, buf->data, buf->len);
     temp_rf_frame.rf_len = buf->len;
@@ -99,6 +100,7 @@ void app_rf_rx_check(rf_frame_t *buf)
             memcpy(&rf_rx.rf_data[11], &reg->ver, 20);
             rf_rx.rf_len = RF_PAYLOAD;
             app_rf_tx(&rf_rx);
+            app_eventbus_publish(EVENT_LED_BLINK, NULL);
 
         } break;
         case RReg: {
@@ -125,7 +127,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                 uint8_t reg_length = 1;
                 app_save_reg(reg_addr, temp_data, 1); // Save reg
             }
-            app_eventbus_publish(EVENT_LED_BLINK, NULL); // Save successful,sending blink event
+            app_eventbus_publish(EVENT_LED_BLINK, NULL);
         } break;
         case SourceData:
         case ForwardData: {
@@ -154,15 +156,21 @@ void app_rf_rx_check(rf_frame_t *buf)
 
                 // Start delayed transmission
                 bsp_start_timer(6, delay_forward, delay_forward_data, &rf_rx, TMR_ONCE_MODE);
-
                 // Update last data cache
                 memcpy(last_data, data_p, data_len);
 
+#if defined PANEL
                 // Execute local panel action
                 static panel_frame_t temp_panel_frame;
                 memcpy(temp_panel_frame.data, data_p, data_len);
                 temp_panel_frame.length = data_len;
                 app_eventbus_publish(EVENT_PANEL_RX, &temp_panel_frame);
+
+#elif defined REPEATER
+                DelayMs(1);
+                app_eventbus_publish(EVENT_LED_BLINK, NULL);
+                bsp_rs485_send_buf(rf_rx.rf_data, rf_rx.rf_len);
+#endif
             }
         } break;
         case SBkz: {

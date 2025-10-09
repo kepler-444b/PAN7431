@@ -70,7 +70,7 @@ void bsp_repeater_init(void)
 
     GPIO_InitStruct.Pin   = GPIO_PIN_8; // KEY
     GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull  = GPIO_NOPULL;
+    GPIO_InitStruct.Pull  = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 }

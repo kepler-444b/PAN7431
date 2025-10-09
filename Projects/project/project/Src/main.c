@@ -24,6 +24,8 @@ int main(void)
     HAL_Init();
     APP_SystemClockConfig();
     PAN211_Init();
+    PAN211_SetRxAddr(0, DEFAULT_ADDR, 5);
+    PAN211_SetTxAddr(DEFAULT_ADDR, 5);
     PAN211_ClearIRQFlags(0xFF);
     bsp_uart_init();
 

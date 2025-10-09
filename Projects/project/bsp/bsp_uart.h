@@ -76,5 +76,6 @@ void bsp_uart_init(void);
 void bsp_uart1_send(uint8_t data);
 void bsp_uart2_send(uint8_t data);
 HAL_StatusTypeDef bsp_uart1_send_buf(uint8_t *data, uint8_t length);
+HAL_StatusTypeDef bsp_rs485_send_buf(uint8_t *data, uint8_t length);
 
 #endif

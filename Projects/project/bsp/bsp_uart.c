@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "bsp_uart.h"
+#include "../app/gpio.h"
 
 UART_HandleTypeDef usart1_handle         = {0};
 static usart1_rx_buf_t uart1_buf         = {0};
@@ -52,7 +53,7 @@ static void bsp_uart_cfg_init(void)
     // uart1 配置
     __HAL_RCC_UART1_CLK_ENABLE();
     usart1_handle.Instance        = UART1;
-    usart1_handle.Init.BaudRate   = BAUDRATE;
+    usart1_handle.Init.BaudRate   = 9600;
     usart1_handle.Init.WordLength = UART_WORDLENGTH_8B;
     usart1_handle.Init.StopBits   = UART_STOPBITS_1;
     usart1_handle.Init.Parity     = UART_PARITY_NONE;
@@ -104,6 +105,23 @@ HAL_StatusTypeDef bsp_uart1_send_buf(uint8_t *data, uint8_t length)
     }
     // 直接使用HAL_UART_Transmit发送所有数据
     return HAL_UART_Transmit(&usart1_handle, data, length, 5000);
+}
+
+HAL_StatusTypeDef bsp_rs485_send_buf(uint8_t *data, uint8_t length)
+{
+    // 参数检查
+    if (data == NULL || length == 0) {
+        return HAL_ERROR;
+    }
+    APP_SET_GPIO(PB3, true);
+    HAL_StatusTypeDef status = HAL_UART_Transmit(&usart1_handle, data, length, 1000);
+
+    if (status == HAL_OK) {
+        while (__HAL_UART_GET_FLAG(&usart1_handle, UART_FLAG_TC) == RESET);
+    }
+
+    APP_SET_GPIO(PB3, false);
+    return status;
 }
 
 void USART1_IRQHandler(void)

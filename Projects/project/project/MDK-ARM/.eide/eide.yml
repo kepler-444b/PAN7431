@@ -1,0 +1,239 @@
+version: "4.1"
+name: PAN7431
+type: ARM
+deviceName: null
+packDir: null
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: Common
+      files:
+        - path: startup_py32f030xx.s
+        - path: ../Src/system_py32f0xx.c
+      folders: []
+    - name: Application
+      files: []
+      folders:
+        - name: User
+          files:
+            - path: ../Src/main.c
+            - path: ../Src/py32f0xx_hal_msp.c
+            - path: ../Src/py32f0xx_it.c
+            - path: ../Inc/main.h
+          folders: []
+    - name: Source
+      files: []
+      folders:
+        - name: PY32F0xx_HAL_Driver
+          files:
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_adc.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_cortex.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_dma.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_flash.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_gpio.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_iwdg.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_pwr.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_rcc.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_tim.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_uart.c
+            - path: ../../../../Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_tim_ex.c
+          folders: []
+    - name: radio
+      files:
+        - path: ../radio/pan211.c
+        - path: ../radio/pan211.h
+      folders: []
+    - name: Doc
+      files:
+        - path: ../readme.txt
+      folders: []
+    - name: APP
+      files:
+        - path: ../../app/adc.c
+        - path: ../../app/adc.h
+        - path: ../../app/app.h
+        - path: ../../app/base.c
+        - path: ../../app/base.h
+        - path: ../../app/config.c
+        - path: ../../app/config.h
+        - path: ../../app/curve_table.h
+        - path: ../../app/eventbus.c
+        - path: ../../app/eventbus.h
+        - path: ../../app/gpio.c
+        - path: ../../app/gpio.h
+        - path: ../../app/iwdg.c
+        - path: ../../app/iwdg.h
+        - path: ../../app/protocol.c
+        - path: ../../app/protocol.h
+        - path: ../../app/pwm.c
+        - path: ../../app/pwm.h
+      folders: []
+    - name: Bsp
+      files:
+        - path: ../../bsp/bsp_flash.c
+        - path: ../../bsp/bsp_flash.h
+        - path: ../../bsp/bsp_pcb.c
+        - path: ../../bsp/bsp_pcb.h
+        - path: ../../bsp/bsp_timer.c
+        - path: ../../bsp/bsp_timer.h
+        - path: ../../bsp/bsp_tm5020a.c
+        - path: ../../bsp/bsp_tm5020a.h
+        - path: ../../bsp/bsp_uart.c
+        - path: ../../bsp/bsp_uart.h
+        - path: ../../bsp/bsp_zero.c
+        - path: ../../bsp/bsp_zero.h
+      folders: []
+    - name: Device
+      files:
+        - path: ../../device/device_manager.c
+        - path: ../../device/device_manager.h
+        - path: ../../device/panel.c
+        - path: ../../device/panel.h
+        - path: ../../device/setter.c
+        - path: ../../device/setter.h
+        - path: ../../device/repeater.c
+        - path: ../../device/repeater.h
+      folders: []
+    - name: ::CMSIS
+      files: []
+      folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: 1343f7d60bd5b5d3d2f82cdd44cf6597
+targets:
+  PAN7431:
+    cppPreprocessAttrs:
+      defineList:
+        - USE_HAL_DRIVER
+        - PY32F030x8
+      incList:
+        - ../Inc
+        - ../radio
+        - ../../../../Drivers/CMSIS/Include
+        - ../../../../Drivers/PY32F0xx_HAL_Driver/Inc
+        - ../../../../Drivers/BSP/PY32F030xx_Start_Kit
+        - ../../../../Drivers/CMSIS/Device/PY32F0xx/Include
+        - .cmsis/include
+        - RTE/_PAN7431
+      libList: []
+    excludeList: []
+    toolchain: AC6
+    toolchainConfigMap:
+      AC6:
+        archExtensions: ""
+        cpuType: Cortex-M0+
+        floatingPointHardware: none
+        options:
+          version: 3
+          afterBuildTasks: []
+          asm-compiler:
+            $use: asm-auto
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            language-c: c99
+            language-cpp: c++11
+            one-elf-section-per-function: true
+            optimization: level-1
+            short-enums#wchar: true
+            warnings: ac5-like-warnings
+          global:
+            output-debug-info: enable
+            use-microLIB: true
+          linker:
+            $outputTaskExcludes:
+              - .bin
+              - .s19
+            misc-controls: --diag_suppress=L6329
+            output-format: elf
+            ro-base: "0x00000000"
+            rw-base: "0x20000000"
+        scatterFilePath: Objects/Project.sct
+        storageLayout:
+          RAM:
+            - id: 1
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 3
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 1
+              isChecked: true
+              mem:
+                size: "0x2000"
+                startAddr: "0x20000000"
+              noInit: false
+              tag: IRAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: IRAM
+          ROM:
+            - id: 1
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 3
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 1
+              isChecked: true
+              isStartup: true
+              mem:
+                size: "0x10000"
+                startAddr: "0x8000000"
+              tag: IROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: IROM
+        useCustomScatterFile: false
+    uploadConfigMap:
+      JLink:
+        baseAddr: ""
+        bin: ""
+        cpuInfo:
+          cpuName: PY32F030x8
+          vendor: "null"
+        otherCmds: ""
+        proType: 1
+        speed: 8000
+    uploader: JLink

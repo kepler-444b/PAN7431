@@ -374,16 +374,16 @@ static void process_cmd_check(FUNC_PARAMS)
 static void process_led_flicker(common_panel_t *common_panel)
 {
     common_panel->led_filck_count++;
-    if (common_panel->led_filck_count <= 500) {
-        panel_ctrl_led_all(false);
-    } else if (common_panel->led_filck_count <= 1000) {
+    if (common_panel->led_filck_count <= 50) {
         panel_ctrl_led_all(true);
-    } else if (common_panel->led_filck_count <= 1500) {
+    } else if (common_panel->led_filck_count <= 100) {
         panel_ctrl_led_all(false);
+    } else if (common_panel->led_filck_count <= 150) {
+        panel_ctrl_led_all(true);
     } else {
         common_panel->led_filck_count = 0;
         common_panel->led_filck       = false;
-        panel_ctrl_led_all(true);
+        panel_ctrl_led_all(false);
     }
 }
 
@@ -417,9 +417,7 @@ static void panel_event_handler(event_type_e event, void *params)
             process_panel_simulate(my_panel_frame->data[0] - 1, my_panel_frame->data[1]);
         } break;
         case EVENT_LED_BLINK: {
-            for (uint8_t i = 0; i < KEY_NUMBER; i++) {
-                my_panel_status[i].led_w_short = true;
-            }
+            my_common_panel.led_filck = true;
         } break;
         default:
             break;

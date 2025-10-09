@@ -5,8 +5,18 @@
 #include "../bsp/bsp_flash.h"
 
 // Read-only item
-#define VER   0x10 // software version
-#define TYPE  0x00 // device type
+#define VER 0x10 // software version
+
+#if defined PANEL
+#define TYPE 0x00
+
+#elif defined REPEATER
+#define TYPE 0x0D
+
+#elif defined SETTER
+#define TYPE 0x7E
+
+#endif
 #define TX_DB 0x09 // TX power
 #define TX_DR 0xFA // TX data rate
 
