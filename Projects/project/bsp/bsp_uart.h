@@ -19,7 +19,6 @@
 // uart2 相关配置(用于调试)
 
 #define UART2                                USART2
-#define BAUDRATE                             115200
 #define UART2_TX_PORT                        GPIOB
 #define UART2_TX_PIN                         GPIO_PIN_6
 #define UART2_RX_PORT                        GPIOB
@@ -71,10 +70,12 @@ typedef struct {
 typedef void (*usart_rx1_callback_t)(usart1_rx_buf_t *buf);
 typedef void (*usart_rx2_callback_t)(usart2_rx_buf_t *buf);
 void app_usart1_rx_callback(usart_rx1_callback_t callback);
+void app_usart2_rx_callback(usart_rx2_callback_t callback);
 
-void bsp_uart_init(void);
+    void bsp_uart_init(void);
 void bsp_uart1_send(uint8_t data);
 void bsp_uart2_send(uint8_t data);
+
 HAL_StatusTypeDef bsp_uart1_send_buf(uint8_t *data, uint8_t length);
 HAL_StatusTypeDef bsp_rs485_send_buf(uint8_t *data, uint8_t length);
 

@@ -8,11 +8,12 @@
 #include "../bsp/bsp_timer.h"
 
 void app_rf_rx_check(rf_frame_t *buf);
-void app_usart_rx_check(usart1_rx_buf_t *buf);
+void app_usart1_rx(usart1_rx_buf_t *buf);
+void app_usart2_rx(usart2_rx_buf_t *buf);
 static void protocol_event_handler(event_type_e event, void *params);
 static void app_save_cfg(uint8_t *cfg_data, uint8_t length);
 static void app_save_reg(uint8_t reg_addr, uint8_t *reg_data, uint8_t length);
-static void app_creat_frame(rf_frame_t *frame, frame_type type, const reg_t *reg);
+static void app_creat_frame(rf_frame_t *frame, rf_frame_type type, const reg_t *reg);
 static void delay_send_find_ack(void *arg);
 static void delay_forward_data(void *arg);
 static void delay_switch_channel(void *arg);
@@ -23,7 +24,8 @@ void app_protocol_init(void)
 {
 #ifndef SETTER
     app_rf_rx_callback(app_rf_rx_check);
-    app_usart1_rx_callback(app_usart_rx_check);
+    app_usart1_rx_callback(app_usart1_rx);
+    app_usart2_rx_callback(app_usart2_rx);
 #endif
     app_eventbus_subscribe(protocol_event_handler);
 }
@@ -41,7 +43,7 @@ static void protocol_event_handler(event_type_e event, void *params)
             PAN211_SetChannel(NET_CHANNEL);
             memcpy(&rf_Request.rf_data[11], &Request_cfg->ver, 11);
             rf_Request.rf_len = RF_PAYLOAD;
-            app_rf_tx(&rf_Request);
+            app_rf_tx(&rf_Request, true);
             APP_PRINTF_BUF("Request_tx_ch1", rf_Request.rf_data, 22);
             bsp_start_timer(1, 1000, delay_switch_channel, NULL, TMR_ONCE_MODE);
 
@@ -51,12 +53,12 @@ static void protocol_event_handler(event_type_e event, void *params)
     }
 }
 
-void app_usart_rx_check(usart1_rx_buf_t *buf)
+void app_usart1_rx(usart1_rx_buf_t *buf)
 {
     static rf_frame_t temp_rf_frame;
     memset(temp_rf_frame.rf_data, 0, sizeof(temp_rf_frame.rf_data));
     temp_rf_frame.rf_len = 0;
-    APP_PRINTF_BUF("buf", buf->data, buf->len);
+    // APP_PRINTF_BUF("buf", buf->data, buf->len);
 #if defined SETTER
     memcpy(temp_rf_frame.rf_data, buf->data, buf->len);
     temp_rf_frame.rf_len = buf->len;
@@ -65,10 +67,15 @@ void app_usart_rx_check(usart1_rx_buf_t *buf)
 #endif
 }
 
+void app_usart2_rx(usart2_rx_buf_t *buf)
+{
+    APP_PRINTF_BUF("buf", buf->data, buf->len);
+}
+
 void app_rf_rx_check(rf_frame_t *buf)
 {
     reg_t *reg = app_get_reg();
-
+    APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
     uint16_t tag_device_addr = MAKE_U16(buf->rf_data[2], buf->rf_data[3]);
     uint16_t src_room_addr   = MAKE_U16(buf->rf_data[8], buf->rf_data[9]);
 
@@ -99,7 +106,7 @@ void app_rf_rx_check(rf_frame_t *buf)
             rf_rx.rf_data[10] = 0x14;
             memcpy(&rf_rx.rf_data[11], &reg->ver, 20);
             rf_rx.rf_len = RF_PAYLOAD;
-            app_rf_tx(&rf_rx);
+            app_rf_tx(&rf_rx, true);
             app_eventbus_publish(EVENT_LED_BLINK, NULL);
 
         } break;
@@ -113,7 +120,7 @@ void app_rf_rx_check(rf_frame_t *buf)
 
             memcpy(&rf_rx.rf_data[11], (uint8_t *)&reg + read_addr, read_length);
             rf_rx.rf_len = RF_PAYLOAD;
-            app_rf_tx(&rf_rx);
+            app_rf_tx(&rf_rx, true);
             APP_PRINTF_BUF("RReg_ack", &rf_rx.rf_data, rf_rx.rf_len);
 
         } break;
@@ -133,8 +140,7 @@ void app_rf_rx_check(rf_frame_t *buf)
         case ForwardData: {
 
             uint16_t delay_forward = reg->zuwflag * 10 + BASE_DELAY;
-
-            bool need_forward = true;
+            bool need_forward      = true;
             if (cmd == ForwardData) {
                 // Compare with last forwarded data to avoid duplication
                 if (memcmp(last_data, data_p, data_len) == 0) {
@@ -151,14 +157,13 @@ void app_rf_rx_check(rf_frame_t *buf)
                 // Create RF frame for forwarding
                 app_creat_frame(&rf_rx, ForwardData, reg);
                 rf_rx.rf_data[10] = data_len;
+
                 memcpy(&rf_rx.rf_data[11], data_p, data_len);
                 rf_rx.rf_len = RF_PAYLOAD;
-
                 // Start delayed transmission
                 bsp_start_timer(6, delay_forward, delay_forward_data, &rf_rx, TMR_ONCE_MODE);
                 // Update last data cache
                 memcpy(last_data, data_p, data_len);
-
 #if defined PANEL
                 // Execute local panel action
                 static panel_frame_t temp_panel_frame;
@@ -167,7 +172,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                 app_eventbus_publish(EVENT_PANEL_RX, &temp_panel_frame);
 
 #elif defined REPEATER
-                DelayMs(1);
+                // DelayMs(1);
                 app_eventbus_publish(EVENT_LED_BLINK, NULL);
                 bsp_rs485_send_buf(rf_rx.rf_data, rf_rx.rf_len);
 #endif
@@ -188,9 +193,9 @@ void app_rf_rx_check(rf_frame_t *buf)
             rf_rx.rf_len      = RF_PAYLOAD;
             DelayMs(1);
             APP_PRINTF_BUF("AckRssi", rf_rx.rf_data, rf_rx.rf_len);
-            app_rf_tx(&rf_rx);
+            app_rf_tx(&rf_rx, false);
 
-            // Start rssi
+            // Start test rssi
             APP_PRINTF("PAN211_StartCarrierWave\n");
             PAN211_ClearIRQFlags(0xFF);
             PAN211_SetChannel(app_get_reg()->channel);
@@ -199,17 +204,27 @@ void app_rf_rx_check(rf_frame_t *buf)
             PAN211_ExitCarrierWave();
             APP_PRINTF("PAN211_ExitCarrierWave\n");
             PAN211_RxStart();
-
         } break;
         case TestFrame: { // Return TestFrame
             app_creat_frame(&rf_rx, TestFrame, reg);
             rf_rx.rf_data[10] = 0x02;
             memcpy(&rf_rx.rf_data[11], &buf->rf_data[11], 0x02);
             rf_rx.rf_len = RF_PAYLOAD;
-            app_rf_tx(&rf_rx);
-
+            app_rf_tx(&rf_rx, false);
         } break;
         case FindSB: { // Return FindSB
+
+            uint16_t tag_room = MAKE_U16(buf->rf_data[11], buf->rf_data[12]);
+            if (tag_room != 0xFFFF && tag_room != my_room_addr) {
+                APP_PRINTF("[FindSB] tag_room:%04X  my_room:%04X\n", tag_room, my_room_addr);
+                return;
+            }
+            uint8_t tag_device_type = buf->rf_data[13];
+            if (buf->rf_data[13] != 0xFF && buf->rf_data[13] != reg->cplei) {
+                APP_PRINTF("[FindSB] tag_device_type:%02X my_device_type:%02X\n", tag_device_type, reg->cplei);
+                return;
+            }
+
             app_creat_frame(&rf_rx, SBAnswer, reg);
             rf_rx.rf_data[10] = 0x14;
             memcpy(&rf_rx.rf_data[11], &reg->ver, 0x14);
@@ -234,24 +249,26 @@ static void delay_send_find_ack(void *arg)
 {
     APP_PRINTF("FindSB\n");
     rf_frame_t *frame = (rf_frame_t *)arg;
-    app_rf_tx(frame);
+    app_rf_tx(frame, true);
     bsp_stop_timer(5);
 }
 
 static void delay_forward_data(void *arg)
 {
     rf_frame_t *frame = (rf_frame_t *)arg;
-    app_rf_tx(frame);
+    app_rf_tx(frame, true);
 }
 
-void app_rf_tx(rf_frame_t *rf_tx)
+void app_rf_tx(rf_frame_t *rf_tx, bool repeat)
 {
     PAN211_WriteFIFO(rf_tx->rf_data, rf_tx->rf_len);
     PAN211_TxStart();
-    while (!IRQDetected());
-    PAN211_TxStart();
-    while (!IRQDetected());
-    PAN211_TxStart();
+    if (repeat) {
+        while (!IRQDetected());
+        PAN211_TxStart();
+        while (!IRQDetected());
+        PAN211_TxStart();
+    }
 }
 
 #if defined PANEL
@@ -290,9 +307,14 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     send_frame.data[7] = temp_cfg[key_number].scene_group;
     // Calculate and set the CRC
     send_frame.data[5] = panel_crc(send_frame.data, 5);
-    send_frame.length  = 8;
 
+    // 发送给自己，加一个按键号
+    send_frame.data[8] = key_number;
+    send_frame.length  = 9;
+    APP_PRINTF_BUF("send_frame", send_frame.data, send_frame.length);
     app_eventbus_publish(EVENT_PANEL_RX_MY, &send_frame);
+    // 发送给其他设备，去掉按键号
+    send_frame.length = 8;
 
     static rf_frame_t rf_tx;
     reg_t *temp_reg = app_get_reg();
@@ -306,13 +328,13 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     memcpy(last_data, data_p, data_len);
 
     rf_tx.rf_len = RF_PAYLOAD;
-    app_rf_tx(&rf_tx);
+    app_rf_tx(&rf_tx, true);
     // APP_PRINTF_BUF("send", rf_tx.rf_data, rf_tx.rf_len);
 }
 #endif
 
 // Used for creating RF frames
-static void app_creat_frame(rf_frame_t *frame, frame_type type, const reg_t *reg)
+static void app_creat_frame(rf_frame_t *frame, rf_frame_type type, const reg_t *reg)
 {
     frame->rf_data[0] = reg->cpadd_h;
     frame->rf_data[1] = reg->cpadd_l;
@@ -331,9 +353,9 @@ static void app_creat_frame(rf_frame_t *frame, frame_type type, const reg_t *reg
 
 static void app_save_cfg(uint8_t *cfg_data, uint8_t length)
 {
-    static uint32_t temp_cfg[9];
+    static uint32_t temp_cfg[10];
 
-    app_uint8_to_uint32(cfg_data, 38, temp_cfg, sizeof(temp_cfg));
+    app_uint8_to_uint32(cfg_data, 40, temp_cfg, sizeof(temp_cfg));
     __disable_irq();
     bsp_flash_write(FLASH_BASE_ADDR, temp_cfg, sizeof(temp_cfg));
     __enable_irq();

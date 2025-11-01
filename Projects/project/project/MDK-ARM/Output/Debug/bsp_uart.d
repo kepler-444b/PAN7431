@@ -19,4 +19,7 @@
   ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_pwr.h \
   ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_tim.h \
   ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_tim_ex.h \
-  ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_uart.h
+  ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_uart.h \
+  ..\..\bsp\..\app\gpio.h ..\..\bsp\..\device\device_manager.h \
+  ..\..\bsp\..\device\panel.h ..\..\bsp\..\device\setter.h \
+  ..\..\bsp\..\device\repeater.h

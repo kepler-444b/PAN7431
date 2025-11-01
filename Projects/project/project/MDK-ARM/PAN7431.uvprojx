@@ -605,6 +605,16 @@
               <FileType>5</FileType>
               <FilePath>..\..\app\pwm.h</FilePath>
             </File>
+            <File>
+              <FileName>pwm_hw.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\app\pwm_hw.c</FilePath>
+            </File>
+            <File>
+              <FileName>pwm_hw.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\app\pwm_hw.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -714,6 +724,16 @@
               <FileName>repeater.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\device\repeater.h</FilePath>
+            </File>
+            <File>
+              <FileName>light_driver_ct.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\device\light_driver_ct.c</FilePath>
+            </File>
+            <File>
+              <FileName>light_driver_ct.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\device\light_driver_ct.h</FilePath>
             </File>
           </Files>
         </Group>

@@ -8,6 +8,7 @@
 #include "../../app/protocol.h"
 #include "../../bsp/bsp_uart.h"
 #include "../../bsp/bsp_timer.h"
+#include "../../app/pwm.h"
 #include "../../device/device_manager.h"
 
 static rf_frame_t my_rf_rx;
@@ -23,8 +24,10 @@ int main(void)
     // Reset of all peripherals, Initializes the Systick
     HAL_Init();
     APP_SystemClockConfig();
+    HAL_Delay(100);
+
     PAN211_Init();
-    PAN211_SetRxAddr(0, DEFAULT_ADDR, 5);
+    PAN211_SetRxAddr(DEFAULT_ADDR, 5);
     PAN211_SetTxAddr(DEFAULT_ADDR, 5);
     PAN211_ClearIRQFlags(0xFF);
     bsp_uart_init();
@@ -40,7 +43,6 @@ int main(void)
     app_jump_device();
     PAN211_RxStart();
     PAN211_SetChannel(app_get_reg()->channel);
-    APP_PRINTF("channel:%d\n", app_get_reg()->channel);
 
     while (1) {
         bsp_timer_poll();

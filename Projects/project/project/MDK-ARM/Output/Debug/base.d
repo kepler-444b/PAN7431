@@ -26,4 +26,5 @@
   ..\..\app\..\app\..\bsp\..\device\device_manager.h \
   ..\..\app\..\app\..\bsp\..\device\panel.h \
   ..\..\app\..\app\..\bsp\..\device\setter.h \
+  ..\..\app\..\app\..\bsp\..\device\repeater.h \
   ..\..\app\..\app\..\bsp\bsp_flash.h ..\..\app\..\bsp\bsp_uart.h

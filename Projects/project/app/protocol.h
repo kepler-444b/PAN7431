@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include "../app/app.h"
 
-#define BASE_DELAY   50
+#define BASE_DELAY   10
 
 #define DEFAULT_ADDR (unsigned char[5]){0x5A, 0x4B, 0x3C, 0x2D, 0x0F}
 #define COM_DEVICE   (unsigned char[5]){0xAA, 0xAA, 0xAA, 0xAA, 0xAA}
@@ -12,8 +12,6 @@
 #define TEST_ADDR1   (unsigned char[5]){0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 #define TEST_ADDR2   (unsigned char[5]){0xC1, 0xCC, 0xCC, 0xCC, 0xCC}
 #define TEST_ADDR3   (unsigned char[5]){0xCC, 0xCC, 0xCC, 0xCC, 0xCC}
-
-extern uint8_t current_channel;
 
 typedef enum {
     Request     = 0x00, // 请求组网
@@ -33,7 +31,7 @@ typedef enum {
     TestFrame   = 0x0e, // Test frame error_rate
     ForwardData = 0x82, // Tran data
 
-} frame_type;
+} rf_frame_type;
 
 typedef enum {
 
@@ -46,15 +44,14 @@ typedef enum {
     GET_MAC_TYPE = 0xA1, // 获取mac地址
     SET_DID_TYPE = 0xA2, // 设置did
 
-    // 快装盒子帧头
     QUICK_SINGLE = 0xE2, // quick (快装盒子)单发串码
     QUICK_MULTI  = 0xE3, // quick (快装盒子)群发串码
     QUICK_END    = 0x30, // quick (快装盒子)结束串码
 
-    // 面板帧头
     PANEL_HEAD   = 0xF1, // panel (面板)通讯数据
     PANEL_SINGLE = 0xF2, // panel (面板)单发串码
     PANEL_MULTI  = 0xF3, // panel (面板)群发串码
+    CARD_HEAD    = 0xFA, // 插拔卡和门磁数据帧头
     APPLY_CONFIG = 0xF8, // 设置软件回复设置申请
     EXIT_CONFIG  = 0xF9, // 设置软件"退出"配置模式
 
@@ -84,7 +81,16 @@ typedef enum {
     PLAY_PAUSE    = 0x65, // 播放/暂停
     NEXT_SONG     = 0x66, // 下一首
     LAST_SONG     = 0x67, // 上一首
-} panel_frame_e;
+    CARD_CMD      = 0x01, // 插拔卡指令
+    REMOVE_CARD   = 0x00, // 拔卡
+    INSERT_CARD   = 0x01, // 插卡
+} frame_type_e;
+
+typedef enum {
+    DEVICE_PANEL    = 0x00, // panel
+    DEVICE_PANEL_AP = 0x14, // panel always-powered
+    DEVICE_REPEATER = 0x0d, // repeater
+} device_type_e;
 
 typedef struct
 {
@@ -92,7 +98,7 @@ typedef struct
     uint8_t length;
 } panel_frame_t;
 void app_protocol_init(void);
-void app_rf_tx(rf_frame_t *rf_tx);
+void app_rf_tx(rf_frame_t *rf_tx, bool repeat);
 void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, uint8_t cmd_type);
 
 #endif

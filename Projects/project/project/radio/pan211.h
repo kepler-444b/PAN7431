@@ -191,7 +191,12 @@ void PAN211_SetAddrWidth(unsigned char AddrWidth);
  * @note 缓冲区长度必须等于收发器当前的地址宽度
  * @note 对于通道[2..5]，只写入地址的第一个字节，因为通道1-5共享四个最高有效地址字节
  */
+#if 0
 void PAN211_SetRxAddr(unsigned char Pipe, unsigned char *Addr, unsigned char Len);
+#else
+void PAN211_SetRxAddr(unsigned char *Addr, unsigned char Len);
+#endif
+
 /**
  * @brief 设置PAN211收发器的静态发送地址
  * @param Addr 包含地址的缓冲区指针

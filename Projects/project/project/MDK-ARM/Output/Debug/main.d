@@ -23,13 +23,13 @@
   ..\..\..\..\Drivers\BSP\PY32F030xx_Start_Kit\py32f030xx_Start_Kit.h \
   ..\radio\pan211.h ..\radio\..\..\app\base.h ..\Src\..\..\app\app.h \
   ..\Src\..\..\app\iwdg.h ..\Src\..\..\app\base.h \
-  ..\Src\..\..\app\protocol.h ..\Src\..\..\app\..\app\app.h \
-  ..\Src\..\..\bsp\bsp_uart.h ..\Src\..\..\bsp\bsp_timer.h \
   ..\Src\..\..\app\eventbus.h ..\Src\..\..\app\config.h \
   ..\Src\..\..\app\..\bsp\bsp_pcb.h \
   ..\Src\..\..\app\..\bsp\..\app\gpio.h \
   ..\Src\..\..\app\..\bsp\..\device\device_manager.h \
   ..\Src\..\..\app\..\bsp\..\device\panel.h \
   ..\Src\..\..\app\..\bsp\..\device\setter.h \
-  ..\Src\..\..\app\..\bsp\bsp_flash.h \
-  ..\Src\..\..\device\device_manager.h
+  ..\Src\..\..\app\..\bsp\..\device\repeater.h \
+  ..\Src\..\..\app\..\bsp\bsp_flash.h ..\Src\..\..\app\protocol.h \
+  ..\Src\..\..\app\..\app\app.h ..\Src\..\..\bsp\bsp_uart.h \
+  ..\Src\..\..\bsp\bsp_timer.h ..\Src\..\..\device\device_manager.h

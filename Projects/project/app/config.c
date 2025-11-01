@@ -10,23 +10,25 @@
 
 #if defined PANEL
 static panel_cfg_t my_panel_cfg[KEY_NUMBER] = {0};
+static uint8_t panel_type; // 0x00 普通面板 0x14 长供电面板
 
 #endif
 static reg_t my_reg = {0};
+static uint8_t sim_key_number; // 软件模拟按键数量
 
 // The default CFG of panel
-static uint8_t DEF_PANEL_CONFIG[38] = {0xF2, 0x0E, 0x0E, 0x0E, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x21, 0x21, 0x21, 0x00, 0x00,
-                                       0x00, 0x00, 0x0E, 0x00, 0x00, 0x44, 0x00, 0x21, 0x00, 0x0E, 0x00, 0x00, 0x21, 0x00, 0xB0, 0x21, 0x84, 0x00, 0x00};
+static uint8_t DEF_PANEL_CONFIG[40] = {0xF2, 0x0E, 0x0E, 0x0E, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x21, 0x21, 0x21, 0x00, 0x00, 0x00,
+                                       0x00, 0x0E, 0x00, 0x00, 0x44, 0x00, 0x21, 0x00, 0x0E, 0x00, 0x00, 0x21, 0x00, 0xB0, 0x21, 0x84, 0x00, 0x00, 0x00, 0x00};
 
 #if defined PANEL
-static void app_load_panel_a11(uint8_t *data);
+static void app_load_panel_a11(uint8_t *data, uint8_t length);
 static void app_panel_get_relay_num(uint8_t *data, const gpio_pin_t *relay_map);
 #endif
 
 void app_load_config(cfg_addr addr)
 {
-    static uint32_t read_data[9] = {0};
-    static uint8_t new_data[38]  = {0};
+    static uint32_t read_data[10] = {0};
+    static uint8_t new_data[40]   = {0};
     memset(read_data, 0, sizeof(read_data));
     memset(new_data, 0, sizeof(new_data));
 
@@ -54,7 +56,7 @@ void app_load_config(cfg_addr addr)
                 }
             }
 #if defined PANEL_6KEY_A11 || defined PANEL_4KEY_A11
-            app_load_panel_a11(new_data);
+            app_load_panel_a11(new_data, sizeof(new_data) / sizeof(new_data[0]));
 #endif
         } break;
         case REG: { // Read the REG
@@ -67,7 +69,7 @@ void app_load_config(cfg_addr addr)
                 APP_PRINTF("reg is null\n");
                 memset(new_data, 0, sizeof(new_data));
                 // default reg
-                new_data[0] = 0x00; // channel
+                new_data[0] = 0x03; // channel
                 new_data[1] = 0x02; // zuwflag
                 new_data[2] = 0x03; // room_h
                 new_data[3] = 0x04; // room_l
@@ -81,7 +83,6 @@ void app_load_config(cfg_addr addr)
                 }
             }
 
-            // APP_PRINTF_BUF("new_data", read_data, 5);
             app_get_uid(my_uid);
             uint16_t cpadd = app_get_crc(my_uid, sizeof(my_uid));
 
@@ -89,9 +90,13 @@ void app_load_config(cfg_addr addr)
             my_reg.ver     = VER;
             my_reg.cpadd_h = cpadd >> 8;
             my_reg.cpadd_l = cpadd & 0xFF;
-            my_reg.cplei   = TYPE;
-            my_reg.tx_db   = TX_DB;
-            my_reg.tx_su   = TX_DR;
+#if defined PANEL
+            my_reg.cplei = panel_type;
+#else
+            my_reg.cplei = TYPE;
+#endif
+            my_reg.tx_db = TX_DB;
+            my_reg.tx_su = TX_DR;
 
             // Fill the (R/W) fields in the REG
             memcpy(&my_reg.channel, new_data, 5);
@@ -111,7 +116,9 @@ void app_load_config(cfg_addr addr)
             APP_PRINTF("forward_en:%02X\n", my_reg.forward_en);
             APP_PRINTF("tx_db:%d\n", my_reg.tx_db);
             APP_PRINTF("tx_su:%d\n", my_reg.tx_su);
+#if defined PANEL
             APP_PRINTF("key:%d\n", my_reg.key);
+#endif
 #endif
         } break;
         default:
@@ -120,11 +127,11 @@ void app_load_config(cfg_addr addr)
 }
 
 #if defined PANEL_6KEY_A11 || defined PANEL_4KEY_A11
-static void app_load_panel_a11(uint8_t *data)
+static void app_load_panel_a11(uint8_t *data, uint8_t length)
 {
+
     gpio_pin_t RELAY_GPIO_MAP[RELAY_NUMBER] = RELAY_GPIO_MAP_DEF;
     gpio_pin_t LED_W_GPIO_MAP[KEY_NUMBER]   = LED_W_GPIO_MAP_DEF;
-
     for (uint8_t i = 0; i < KEY_NUMBER; i++) {
         panel_cfg_t *const p_cfg = &my_panel_cfg[i];
         if (i < 4) {
@@ -148,6 +155,9 @@ static void app_load_panel_a11(uint8_t *data)
         }
         p_cfg->led_w_pin = LED_W_GPIO_MAP[i];
     }
+
+    sim_key_number = data[length - 2];
+    panel_type     = data[length - 3];
     app_panel_get_relay_num(data, RELAY_GPIO_MAP);
 #if 1
     for (uint8_t i = 0; i < KEY_NUMBER; i++) {
@@ -159,6 +169,8 @@ static void app_load_panel_a11(uint8_t *data)
         }
         APP_PRINTF("\n");
     }
+    APP_PRINTF("device_type:%02X\n", panel_type);
+    APP_PRINTF("sim_key_number:%02X\n", sim_key_number);
 #endif
 }
 #endif
@@ -167,7 +179,6 @@ static void app_load_panel_a11(uint8_t *data)
 #if defined PANEL
 static void app_panel_get_relay_num(uint8_t *data, const gpio_pin_t *relay_map)
 {
-
     const uint8_t base_offset = 34;
     for (uint8_t i = 0; i < KEY_NUMBER; i++) {
         uint8_t byte_offset          = base_offset + (i / 2);
@@ -183,9 +194,17 @@ const panel_cfg_t *app_get_panel_cfg(void)
 {
     return my_panel_cfg;
 }
+const uint8_t app_get_panel_type(void)
+{
+    return panel_type;
+}
 #endif
 
 reg_t *app_get_reg(void)
 {
     return &my_reg;
+}
+uint8_t app_get_sim_key_number(void)
+{
+    return sim_key_number;
 }

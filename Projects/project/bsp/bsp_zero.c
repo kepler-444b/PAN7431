@@ -4,8 +4,8 @@
 #include <string.h>
 
 #define QUEUE_SIZE   12
-#define ZERO_TIMEOUT 400 // 40ms
-#define DELAY_TIME   5   // 5ms
+#define ZERO_TIMEOUT 40 // 40ms
+#define DELAY_TIME   5  // 5ms
 
 typedef struct {
     gpio_pin_t pin;
@@ -34,7 +34,7 @@ void bsp_zero_init(void)
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     __HAL_RCC_GPIOA_CLK_ENABLE();
     GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING;
-    GPIO_InitStruct.Pull  = GPIO_NOPULL;
+    GPIO_InitStruct.Pull  = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Pin   = GPIO_PIN_9;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -61,7 +61,6 @@ void bsp_zero_init(void)
 void EXTI4_15_IRQHandler(void)
 {
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);
-
     zero_timeout_count = 0;
     zero_failed        = false;
 
@@ -86,6 +85,7 @@ void TIM16_IRQHandler(void)
         delay_count++;
         if (delay_count >= DELAY_TIME) {
             APP_SET_GPIO(pending_cmd.pin, pending_cmd.status);
+            // APP_PRINTF("%d %d %d %d\n", APP_GET_GPIO(PB1), APP_GET_GPIO(PA5), APP_GET_GPIO(PA6), APP_GET_GPIO(PB0));
             is_delaying = false;
         }
     }

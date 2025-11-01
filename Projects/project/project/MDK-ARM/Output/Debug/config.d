@@ -24,7 +24,7 @@
   ..\..\app\..\bsp\..\app\gpio.h \
   ..\..\app\..\bsp\..\device\device_manager.h \
   ..\..\app\..\bsp\..\device\panel.h ..\..\app\..\bsp\..\device\setter.h \
-  ..\..\app\..\bsp\bsp_flash.h ..\..\app\app.h ..\..\app\..\app\config.h \
-  ..\..\app\..\bsp\bsp_uart.h ..\..\app\..\app\base.h \
-  ..\..\app\..\app\protocol.h ..\..\app\..\app\..\app\app.h \
-  ..\..\app\..\app\eventbus.h
+  ..\..\app\..\bsp\..\device\repeater.h ..\..\app\..\bsp\bsp_flash.h \
+  ..\..\app\app.h ..\..\app\..\app\config.h ..\..\app\..\bsp\bsp_uart.h \
+  ..\..\app\..\app\base.h ..\..\app\..\app\protocol.h \
+  ..\..\app\..\app\..\app\app.h ..\..\app\..\app\eventbus.h

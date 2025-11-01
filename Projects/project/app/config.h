@@ -7,16 +7,14 @@
 // Read-only item
 #define VER 0x10 // software version
 
-#if defined PANEL
-#define TYPE 0x00
-
-#elif defined REPEATER
+#if defined REPEATER
 #define TYPE 0x0D
-
 #elif defined SETTER
 #define TYPE 0x7E
-
+#elif defined LIGHT_DRIVER_CT
+#define TYPE 0xFF
 #endif
+
 #define TX_DB 0x09 // TX power
 #define TX_DR 0xFA // TX data rate
 
@@ -75,6 +73,8 @@ static uint8_t my_uid[12] = {0};
 void app_load_config(cfg_addr addr);
 
 const panel_cfg_t *app_get_panel_cfg(void);
+const uint8_t app_get_panel_type(void);
 
 reg_t *app_get_reg(void);
+uint8_t app_get_sim_key_number(void);
 #endif

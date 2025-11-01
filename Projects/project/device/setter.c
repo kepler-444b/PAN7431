@@ -12,11 +12,11 @@
 #if defined SETTER
 
 #define SETTER_HEAD(arr, third_byte) \
-    do {                                  \
-        (arr)[0] = 0xAC;                  \
-        (arr)[1] = 0x85;                  \
-        (arr)[2] = (third_byte);          \
-        (arr)[3] = 0x40;                  \
+    do {                             \
+        (arr)[0] = 0xAC;             \
+        (arr)[1] = 0x85;             \
+        (arr)[2] = (third_byte);     \
+        (arr)[3] = 0x40;             \
     } while (0)
 
 #define MASK_BIT6          (0x00000040UL)
@@ -150,9 +150,8 @@ static void tran_delay_stop_rassi(void *arg)
                my_history_value.std_dev_value);
 
     uint8_t rssi_rep[RSSI_REP_FRAME_LEN];
-    rssi_rep[0] = (current_device_addr >> 8) & 0xFF;
-    rssi_rep[1] = current_device_addr & 0xFF;
-
+    rssi_rep[0]  = (current_device_addr >> 8) & 0xFF;
+    rssi_rep[1]  = current_device_addr & 0xFF;
     rssi_rep[2]  = 0x00;
     rssi_rep[3]  = 0x00;
     rssi_rep[4]  = RssiTest;
@@ -180,11 +179,11 @@ static void tran_delay_stop_rassi(void *arg)
 
 static void recv_from_soft(usart1_rx_buf_t *buf)
 {
-    uint8_t order = buf->data[2];
-    uint8_t len   = buf->data[3];
-
-    if ((buf->data[0] == 0x01) && (buf->data[1] == 0x02) && (buf->data[2] == 0x03)) {
-
+    uint8_t cmd = buf->data[2];
+    uint8_t len = buf->data[3];
+    APP_PRINTF_BUF("[recv from software]", buf->data, buf->len);
+    if (((buf->data[0] == 0x01) && (buf->data[1] == 0x02) && (buf->data[2] == 0x03)) ||
+        ((buf->data[4] == 0x01) && (buf->data[5] == 0x02) && (buf->data[6] == 0x03))) {
         static uint8_t temp[6] = {0xac, 0x85, 0xff, 0x01, 0x02, 0x03};
         APP_SET_GPIO(PA5, true);
         bsp_uart1_send_buf(temp, 6);
@@ -198,15 +197,14 @@ static void recv_from_soft(usart1_rx_buf_t *buf)
     memset(obj.rf_data, 0, sizeof(obj.rf_data));
     obj.rf_len = 0;
 
-    // APP_PRINTF_BUF("[recv from software]", buf->data, buf->len);
-    switch (order) {
+    switch (cmd) {
         case 0x00: // 接收到的码,源码返回
             bsp_uart1_send_buf(&buf->data[4], len);
             break;
         case 0x01: // 数据转发到无线2.4G
             memcpy(obj.rf_data, &buf->data[4], len);
             obj.rf_len = RF_PAYLOAD;
-            app_rf_tx(&obj);
+            app_rf_tx(&obj, false);
             break;
         case 0x02: // 接收到的数据转发给软件
             break;
@@ -249,12 +247,21 @@ static void recv_from_rf(rf_frame_t *buf)
         return;
     } else {
         SETTER_HEAD(recv_from_rfware, SourceData);
-        recv_from_rfware[3] = 0x40;
-        uint8_t new_len     = len + 15;
-        memcpy(&recv_from_rfware[4], buf->rf_data, new_len);
-        recv_from_rfware[new_len]     = 0x0D;              // "\r"
-        recv_from_rfware[new_len + 1] = 0x0A;              // "\n"
-        bsp_uart1_send_buf(recv_from_rfware, new_len + 2); /// 发送数据
+        recv_from_rfware[3] = len + 11; // New len
+        memcpy(&recv_from_rfware[4], buf->rf_data, recv_from_rfware[3]);
+        recv_from_rfware[recv_from_rfware[3] + 4] = 0x0D; // "\r"
+        recv_from_rfware[recv_from_rfware[3] + 5] = 0x0A; // "\n"
+        APP_PRINTF_BUF("", recv_from_rfware, recv_from_rfware[3] + 6);
+        bsp_uart1_send_buf(recv_from_rfware, recv_from_rfware[3] + 6); // 发送数据
+        // APP_PRINTF("time:%d\n", bsp_get_run_time());
+
+        // uint8_t new_len     = len + 15;
+        // APP_PRINTF("new_len:%d\n", new_len);
+        // memcpy(&recv_from_rfware[4], buf->rf_data, new_len);
+        // recv_from_rfware[new_len]     = 0x0D; // "\r"
+        // recv_from_rfware[new_len + 1] = 0x0A; // "\n"
+        // APP_PRINTF_BUF("send_soft", recv_from_rfware, new_len + 2);
+        // bsp_uart1_send_buf(recv_from_rfware, new_len + 2); /// 发送数据
     }
 #else
     switch (cmd) {

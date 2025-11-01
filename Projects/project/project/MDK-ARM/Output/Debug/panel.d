@@ -23,9 +23,10 @@
   ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_uart.h \
   ..\..\..\..\Drivers\BSP\PY32F030xx_Start_Kit\py32f030xx_Start_Kit.h \
   ..\radio\..\..\app\base.h ..\..\device\device_manager.h \
-  ..\..\device\setter.h ..\..\device\..\app\eventbus.h \
-  ..\..\device\..\app\protocol.h ..\..\device\..\app\..\app\app.h \
-  ..\..\device\..\app\config.h ..\..\device\..\app\..\bsp\bsp_pcb.h \
+  ..\..\device\setter.h ..\..\device\repeater.h \
+  ..\..\device\..\app\eventbus.h ..\..\device\..\app\protocol.h \
+  ..\..\device\..\app\..\app\app.h ..\..\device\..\app\config.h \
+  ..\..\device\..\app\..\bsp\bsp_pcb.h \
   ..\..\device\..\app\..\bsp\..\app\gpio.h \
   ..\..\device\..\app\..\bsp\..\device\device_manager.h \
   ..\..\device\..\app\..\bsp\bsp_flash.h ..\..\device\..\app\adc.h \

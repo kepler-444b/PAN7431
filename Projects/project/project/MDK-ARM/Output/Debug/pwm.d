@@ -22,4 +22,5 @@
   ..\..\..\..\Drivers\PY32F0xx_HAL_Driver\Inc\py32f0xx_hal_uart.h \
   ..\..\app\pwm.h ..\..\app\gpio.h ..\..\app\curve_table.h \
   ..\..\app\..\bsp\bsp_uart.h ..\..\app\..\device\device_manager.h \
-  ..\..\app\..\device\panel.h ..\..\app\..\device\setter.h
+  ..\..\app\..\device\panel.h ..\..\app\..\device\setter.h \
+  ..\..\app\..\device\repeater.h

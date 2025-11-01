@@ -70,6 +70,8 @@ virtualFolder:
         - path: ../../app/protocol.h
         - path: ../../app/pwm.c
         - path: ../../app/pwm.h
+        - path: ../../app/pwm_hw.c
+        - path: ../../app/pwm_hw.h
       folders: []
     - name: Bsp
       files:
@@ -96,6 +98,8 @@ virtualFolder:
         - path: ../../device/setter.h
         - path: ../../device/repeater.c
         - path: ../../device/repeater.h
+        - path: ../../device/light_driver_ct.c
+        - path: ../../device/light_driver_ct.h
       folders: []
     - name: ::CMSIS
       files: []
