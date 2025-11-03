@@ -31,6 +31,14 @@ typedef enum {
     KEY_6 = 0x06,
 } key_number;
 
+typedef enum {
+    SIM_1KEY = 0x01,
+    SIM_2KEY = 0x02,
+    SIM_3KEY = 0x03,
+    SIM_4KEY = 0x04,
+    SIM_6KEY = 0x06,
+} sim_key_numer_e;
+
 // Used for information storage of apanel type
 typedef struct
 {

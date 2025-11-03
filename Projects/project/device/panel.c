@@ -18,6 +18,7 @@
 #define WS_RS 0b00101010 // Control white LED short and relay short
 #define R_RS  0b00110010 // Control relay and relay short
 #define WS_R  0b00011010 // Control white LED and relay short
+#define R     0b00010010
 
 // BIT7:data->data[2]
 // BIT6:k_status
@@ -133,12 +134,18 @@ typedef enum {
     BACKLIGHT_ON
 } backlight_mode_e;
 
+typedef enum {
+    PANEL_DO_KEY_LIGHT  = 0, // 控制灯，不控制继电器（普通映射）
+    PANEL_DO_KEY_RELAY  = 1, // 控制灯并控制继电器（主按键）
+    PANEL_DO_RELAY_ONLY = 2  // 只控制继电器，不控制灯
+} panel_action_e;
+
 static void
 panel_read_adc(void *arg);
 static void panel_proce_cmd(void *arg);
 static void panel_event_handler(event_type_e event, void *params);
 static void process_led_flicker(common_panel_t *common_panel);
-static void panel_fast_exe(panel_status_t *temp_fast, uint8_t flag);
+static void panel_fast_exe(uint8_t flag, uint8_t idx);
 static void process_panel_simulate(uint8_t key_number, uint8_t status);
 static void panel_backlight_status(const panel_cfg_t *temp_cfg, panel_status_t *temp_status, backlight_mode_e mode);
 static void panel_ctrl_led_all(bool led_state);
@@ -146,6 +153,8 @@ static void panel_power_status(void);
 static void panel_insert_card(void);
 static void panel_remove_card(void);
 static void panel_data_cb(panel_frame_t *data, data_source_e data_src);
+static void set_panel_status(uint8_t idx, uint8_t flag, panel_action_e action);
+static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t main_key, uint8_t slave_key, bool is_toggle);
 static void process_panel_adc(ADC_PARAMS);
 static void process_exe_status(TIMER_PARAMS);
 static void process_cmd_check(FUNC_PARAMS);
@@ -166,6 +175,7 @@ static void panel_night_light(FUNC_PARAMS);
 
 static common_panel_t my_common_panel;
 static adc_value_t my_adc_value;
+
 void panel_device_init(void)
 {
     bsp_panel_init();
@@ -179,7 +189,7 @@ void panel_device_init(void)
     bsp_zero_init();
 #endif
     app_pwm_add_pin(PA8);
-    app_set_pwm_fade(PA8, 500, 1000);
+    app_set_pwm_fade(PA8, 1000, 1000);
     my_common_panel.bl_status = true;
     panel_power_status();
     APP_PRINTF("panel_device_init\n");
@@ -242,40 +252,71 @@ static void process_panel_adc(ADC_PARAMS)
             temp_common->key_long_press = true;
             temp_common->key_long_count = 0;
 #else
+
+            bool is_toggle = true; // 外层根据条件设置是否允许翻转
             bool is_special;
-            if (app_get_sim_key_number() == 0x03) {
-                if (i == 0 || i == 1) {
-
-                    temp_status[0].k_status ^= 1; // Toggle key status
-                    temp_status[1].k_status ^= 1; // Toggle key status
-
-                    is_special = temp_status[0].r_short;
-                    is_special = temp_status[1].r_short;
-                    app_send_cmd(0, (is_special ? 0x00 : temp_status[0].k_status), PANEL_HEAD, (is_special ? SPECIAL_CMD : COMMON_CMD));
-                    temp_status[0].k_press = true;
-                    temp_status[1].k_press = true;
+            uint8_t sim_key_number = app_get_sim_key_number();
+#if defined HW_6KEY
+            switch (sim_key_number) {
+                case SIM_1KEY: {
+                    const uint8_t key_pairs[][2] = {{0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}}; // 映射关系
+                    for (int pair_idx = 0; pair_idx < KEY_NUMBER; pair_idx++) {
+                        uint8_t main_key   = key_pairs[pair_idx][0];
+                        uint8_t mapped_key = key_pairs[pair_idx][1];
+                        if (i == main_key || i == mapped_key) {
+                            panel_key_map(temp_status, 0, main_key, mapped_key, is_toggle);
+                            break;
+                        }
+                    }
+                    break;
                 }
-                if (i == 2 || i == 3) {
-                    temp_status[2].k_status ^= 1; // Toggle key status
-                    temp_status[3].k_status ^= 1; // Toggle key status
-
-                    is_special = temp_status[2].r_short;
-                    is_special = temp_status[3].r_short;
-                    app_send_cmd(1, (is_special ? 0x00 : temp_status[1].k_status), PANEL_HEAD, (is_special ? SPECIAL_CMD : COMMON_CMD));
-                    temp_status[2].k_press = true;
-                    temp_status[3].k_press = true;
-                }
-                if (i == 4 || i == 5) {
-                    temp_status[4].k_status ^= 1; // Toggle key status
-                    temp_status[5].k_status ^= 1; // Toggle key status
-
-                    is_special = temp_status[2].r_short;
-                    is_special = temp_status[3].r_short;
-                    app_send_cmd(2, (is_special ? 0x00 : temp_status[2].k_status), PANEL_HEAD, (is_special ? SPECIAL_CMD : COMMON_CMD));
-                    temp_status[4].k_press = true;
-                    temp_status[5].k_press = true;
+                case SIM_6KEY:
+                    panel_key_map(temp_status, i, i, 0xFF, is_toggle);
+                    break;
+                case SIM_3KEY: {
+                    const uint8_t key_pairs[][2] = {{0, 1}, {2, 3}, {4, 5}}; // 映射关系
+                    for (int pair_idx = 0; pair_idx < 3; pair_idx++) {
+                        uint8_t main_key   = key_pairs[pair_idx][0]; // 主按键
+                        uint8_t mapped_key = key_pairs[pair_idx][1]; // 从键
+                        if (i == main_key || i == mapped_key) {
+                            panel_key_map(temp_status, pair_idx, main_key, mapped_key, is_toggle);
+                            break;
+                        }
+                    }
+                    break;
                 }
             }
+#elif defined HW_4KEY
+            switch (sim_key_number) {
+                case SIM_1KEY: {
+                    const uint8_t key_pairs[][2] = {{0, 1}, {0, 2}, {0, 3}}; // 映射关系
+                    for (int pair_idx = 0; pair_idx < KEY_NUMBER; pair_idx++) {
+                        uint8_t main_key   = key_pairs[pair_idx][0];
+                        uint8_t mapped_key = key_pairs[pair_idx][1];
+                        if (i == main_key || i == mapped_key) {
+                            panel_key_map(temp_status, 0, main_key, mapped_key, is_toggle);
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case SIM_4KEY:
+                    panel_key_map(temp_status, i, i, 0xFF, is_toggle);
+                    break;
+                case SIM_2KEY: {
+                    const uint8_t key_pairs[][2] = {{0, 1}, {2, 3}, {4, 5}}; // 映射关系
+                    for (int pair_idx = 0; pair_idx < 3; pair_idx++) {
+                        uint8_t main_key   = key_pairs[pair_idx][0]; // 主按键
+                        uint8_t mapped_key = key_pairs[pair_idx][1]; // 从键
+                        if (i == main_key || i == mapped_key) {
+                            panel_key_map(temp_status, pair_idx, main_key, mapped_key, is_toggle);
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+#endif
             temp_common->key_long_press = true;
             temp_common->key_long_count = 0;
 #endif
@@ -287,6 +328,26 @@ static void process_panel_adc(ADC_PARAMS)
             temp_common->key_long_press = false;
         }
     }
+}
+
+static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t main_key, uint8_t slave_key, bool is_toggle)
+{
+    bool is_special = temp_status[main_key].r_short;
+
+    if (is_toggle) { // 切换按键状态
+        temp_status[main_key].k_status ^= 1;
+        if (slave_key != 0xFF) { // 0xFF 表示没有从键
+            temp_status[slave_key].k_status ^= 1;
+        }
+    }
+    is_special |= temp_status[main_key].r_short;
+    // 发送命令
+    app_send_cmd(cmd_idx, (is_special ? 0x00 : temp_status[main_key].k_status), PANEL_HEAD, (is_special ? SPECIAL_CMD : COMMON_CMD));
+    temp_status[main_key].k_press = true;
+    if (slave_key != 0xFF) {
+        temp_status[slave_key].k_press = true;
+    }
+    DelayMs(100);
 }
 
 static void process_panel_simulate(uint8_t key_number, uint8_t status)
@@ -384,11 +445,11 @@ static void panel_backlight_status(const panel_cfg_t *temp_cfg, panel_status_t *
             uint8_t no_w_led = 0;
             for (uint8_t i = 0; i < KEY_NUMBER; i++) {
                 no_w_led += temp_status[i].w_cur;
-                app_set_pwm_fade(PA8, no_w_led ? 500 : 50, 3000);
+                app_set_pwm_fade(PA8, no_w_led ? 1000 : 100, 3000);
             }
         } break;
         case BACKLIGHT_ON:
-            app_set_pwm_fade(PA8, 500, 3000);
+            app_set_pwm_fade(PA8, 1000, 3000);
             break;
         case BACKLIGHT_OFF:
             app_set_pwm_fade(PA8, 0, 3000);
@@ -438,7 +499,7 @@ static void process_cmd_check(FUNC_PARAMS)
             bool func_match = (p_cfg->func == LIGHT_MODE);
             bool area_match = (BIT1(p_cfg->perm));
             if (!func_match || !area_match) continue;
-            panel_fast_exe(p_status, W_R | 0x01);
+            panel_fast_exe(W_R | 0x01, _i);
         });
         return;
     }
@@ -540,13 +601,11 @@ static void panel_event_handler(event_type_e event, void *params)
     switch (event) {
         case EVENT_PANEL_RX: {
             panel_frame_t *my_panel_frame = (panel_frame_t *)params;
-            // APP_PRINTF_BUF("EVENT_PANEL_RX", my_panel_frame->data, my_panel_frame->length);
             panel_data_cb(my_panel_frame, OTHER);
 
         } break;
         case EVENT_PANEL_RX_MY: {
             panel_frame_t *my_panel_frame = (panel_frame_t *)params;
-            // APP_PRINTF_BUF("EVENT_PANEL_RX_MY", my_panel_frames->data, my_panel_frame->length);
             panel_data_cb(my_panel_frame, THIS);
 
         } break;
@@ -569,10 +628,10 @@ static void panel_power_status(void)
         }
         switch (p_cfg->func) {
             case LIGHT_MODE:
-                panel_fast_exe(p_status, 0b00010110 | 0x01);
+                panel_fast_exe(W_R | 0x01, _i);
                 break;
             case SCENE_MODE: // 场景模式,不开白灯
-                panel_fast_exe(p_status, 0b00010000 | 0x01);
+                panel_fast_exe(R | 0x01, _i);
                 break;
             default:
                 break;
@@ -582,7 +641,7 @@ static void panel_power_status(void)
 
 static void panel_insert_card(void)
 {
-    app_set_pwm_fade(PA8, 500, 1000);
+    app_set_pwm_fade(PA8, 1000, 1000);
     panel_power_status();
 }
 
@@ -598,7 +657,7 @@ static void panel_remove_card(void)
     my_common_panel.bl_close = true;
 }
 
-static void panel_fast_exe(panel_status_t *temp_fast, uint8_t flag)
+static void panel_fast_exe(uint8_t flag, uint8_t idx)
 {
     // BIT7:data->data[2]
     // BIT6:k_status
@@ -608,22 +667,104 @@ static void panel_fast_exe(panel_status_t *temp_fast, uint8_t flag)
     // BIT2:r_short
     // BIT1:reserve
     // BIT0:reserve
+    uint8_t sim_key_number = app_get_sim_key_number();
 
-    if (BIT1(flag)) {
-        temp_fast->k_status = BIT0(flag);
+#if defined HW_6KEY
+    switch (sim_key_number) {
+        case SIM_1KEY: {
+            for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+                if (idx == 0) {
+                    if (i == 0) {
+                        set_panel_status(i, flag, true);
+                    } else {
+                        set_panel_status(i, flag, false);
+                    }
+                } else {
+                    set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
+                }
+            }
+        } break;
+        case SIM_3KEY: {
+            if (idx == 0 || idx == 1 || idx == 2) {
+                if (idx == 0) {
+                    set_panel_status(0, flag, PANEL_DO_KEY_RELAY);
+                    set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
+                } else if (idx == 1) {
+                    set_panel_status(2, flag, PANEL_DO_KEY_RELAY);
+                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
+                } else if (idx == 2) {
+                    set_panel_status(4, flag, PANEL_DO_KEY_RELAY);
+                    set_panel_status(5, flag, PANEL_DO_KEY_LIGHT);
+                }
+            } else {
+                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
+            }
+            break;
+        }
+        case SIM_6KEY:
+            set_panel_status(idx, flag, true);
+            break;
+        default:
+            break;
     }
-    if (BIT2(flag)) {
-        temp_fast->w_cur = BIT0(flag);
+#elif defined HW_4KEY
+
+    switch (sim_key_number) {
+
+        case SIM_1KEY: {
+            for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+                if (idx == 0) {
+                    if (i == 0) {
+                        set_panel_status(i, flag, true);
+                    } else {
+                        set_panel_status(i, flag, false);
+                    }
+                } else {
+                    set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
+                }
+            }
+        } break;
+        case SIM_2KEY: {
+            if (idx == 0 || idx == 1) {
+                if (idx == 0) {
+                    set_panel_status(0, flag, PANEL_DO_KEY_RELAY);
+                    set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
+                } else if (idx == 1) {
+                    set_panel_status(2, flag, PANEL_DO_KEY_RELAY);
+                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
+                }
+            } else {
+                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
+            }
+
+        } break;
+        case SIM_4KEY: {
+            set_panel_status(idx, flag, true);
+
+        } break;
+        default:
+            break;
     }
-    if (BIT3(flag)) {
-        temp_fast->w_short = true; // 短亮会快速熄灭,无需持续状态,故而不受data->data[2]控制
+#endif
+}
+
+static void set_panel_status(uint8_t idx, uint8_t flag, panel_action_e action)
+{
+    // 灯逻辑
+    if (action != PANEL_DO_RELAY_ONLY) {
+        if (BIT1(flag)) my_panel_status[idx].k_status = BIT0(flag);
+        if (BIT2(flag)) my_panel_status[idx].w_cur = BIT0(flag);
+        if (BIT3(flag)) my_panel_status[idx].w_short = true;
     }
-    if (BIT4(flag)) {
-        temp_fast->r_cur = BIT0(flag);
-    }
-    if (BIT5(flag)) {
-        temp_fast->r_short       = BIT0(flag);
-        temp_fast->r_short_count = 0; // 继电器短开计数器提前置0
+
+    // 继电器逻辑
+    if (action == PANEL_DO_KEY_RELAY || action == PANEL_DO_RELAY_ONLY) {
+        if (BIT4(flag)) my_panel_status[idx].r_cur = BIT0(flag);
+        if (BIT5(flag)) {
+            my_panel_status[idx].r_short = BIT0(flag);
+            APP_PRINTF("idx:%d\n", idx);
+            my_panel_status[idx].r_short_count = 0;
+        }
     }
 }
 
@@ -643,28 +784,28 @@ static void panel_all_close(FUNC_PARAMS) // all_close
             case ALL_CLOSE: {
                 bool group_match = (data->data[3] == p_cfg->group);
                 if (!group_match) break;
-                panel_fast_exe(p_status, WS_R | (data->data[2] & 0x01));
+                panel_fast_exe(WS_R | (data->data[2] & 0x01), _i);
             } break;
             case NIGHT_LIGHT:
             case DND_MODE:
-                panel_fast_exe(p_status, W_R | 0x01);
+                panel_fast_exe(W_R | 0x01, _i);
                 break;
             case ALL_ON_OFF:
-                panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+                panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
                 break;
             case SCENE_MODE:
             case LIGHT_MODE:
             case CLEAN_ROOM:
-                panel_fast_exe(p_status, W_R | 0x00);
+                panel_fast_exe(W_R | 0x00, _i);
                 break;
             case CURTAIN_CLOSE: // If "curtain_close" exists and "all_close" is selected
                 PROCESS_INNER(temp_cfg, temp_status, {
                     bool func_match  = (p_cfg_ex->func == CURTAIN_OPEN);
                     bool group_match = (p_cfg_ex->group == p_cfg->group);
                     if (!func_match || !group_match) continue;
-                    panel_fast_exe(p_status_ex, R_RS | 0x00);
+                    panel_fast_exe(R_RS | 0x00, _j);
                 });
-                panel_fast_exe(p_status, WS_RS | 0x01);
+                panel_fast_exe(WS_RS | 0x01, _i);
                 break;
             default:
                 break;
@@ -686,49 +827,49 @@ static void panel_all_on_off(FUNC_PARAMS) // all_on_off
             case ALL_ON_OFF:
                 if (data->data[3] == p_cfg->group) {
                     if (BIT4(p_cfg->perm) && BIT6(p_cfg->perm)) { // If both "Only On" and "Toggle" are selected
-                        panel_fast_exe(p_status, WS_R | 0x00);
+                        panel_fast_exe(WS_R | 0x00, _i);
                     } else if (BIT4(p_cfg->perm)) { // If "only_on" is selected
-                        panel_fast_exe(p_status, W_R | 0x01);
+                        panel_fast_exe(W_R | 0x01, _i);
                     } else if (BIT6(p_cfg->perm)) { // If "toggle" is selected
-                        panel_fast_exe(p_status, W_R | (~data->data[2] & 0x01));
+                        panel_fast_exe(W_R | (~data->data[2] & 0x01), _i);
                     } else { // default
-                        panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+                        panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
                     }
                 }
                 break;
             case DND_MODE:
-                panel_fast_exe(p_status, W_R | (~data->data[2] & 0x01));
+                panel_fast_exe(W_R | (~data->data[2] & 0x01), _i);
                 break;
             case LIGHT_MODE:
             case SCENE_MODE:
             case CLEAN_ROOM:
             case NIGHT_LIGHT:
                 if (BIT7(p_cfg->perm) && !data->data[2]) { // If "not_on" is selected, controlled only by "all_on_off" off
-                    panel_fast_exe(p_status, W_R | 0x00);
+                    panel_fast_exe(W_R | 0x00, _i);
                 } else if (!BIT7(p_cfg->perm)) { // If "not_on" is unmatched
-                    panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+                    panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
                 }
                 break;
             case ALL_CLOSE: // If "all_on_off" is selected,"all_close" is not blink
-                panel_fast_exe(p_status, 0b00010010 | (data->data[2] & 0x01));
+                panel_fast_exe(0b00010010 | (data->data[2] & 0x01), _i);
                 break;
             case CURTAIN_CLOSE:
                 PROCESS_INNER(temp_cfg, temp_status, {
                     bool func_match  = (p_cfg_ex->func == CURTAIN_OPEN);
                     bool group_match = (p_cfg_ex->group == p_cfg->group);
                     if (!func_match || !group_match) continue;
-                    panel_fast_exe(p_status_ex, R_RS | 0x00);
+                    panel_fast_exe(R_RS | 0x00, _j);
                 });
-                panel_fast_exe(p_status, WS_RS | 0x01);
+                panel_fast_exe(WS_RS | 0x01, _i);
                 break;
             case CURTAIN_OPEN:
                 PROCESS_INNER(temp_cfg, temp_status, {
                     bool func_match  = (p_cfg_ex->func == CURTAIN_CLOSE);
                     bool group_match = (p_cfg_ex->group == p_cfg->group);
                     if (!func_match || !group_match) continue;
-                    panel_fast_exe(p_status_ex, R_RS | 0x00);
+                    panel_fast_exe(R_RS | 0x00, _i);
                 });
-                panel_fast_exe(p_status, WS_RS | 0x01);
+                panel_fast_exe(WS_RS | 0x01, _i);
                 break;
             default:
                 break;
@@ -746,10 +887,10 @@ static void panel_clean_room(FUNC_PARAMS)
             PROCESS_INNER(temp_cfg, temp_status, {
                 bool func_match_ex = (p_cfg_ex->func == DND_MODE);
                 if (!func_match_ex) continue;
-                panel_fast_exe(p_status_ex, W_R | (~data->data[2] & 0x01));
+                panel_fast_exe(W_R | (~data->data[2] & 0x01), _j);
             });
         }
-        panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+        panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
 
@@ -763,10 +904,10 @@ static void panel_dnd_mode(FUNC_PARAMS)
             PROCESS_INNER(temp_cfg, temp_status, {
                 bool func_match_ex = (p_cfg_ex->func == CLEAN_ROOM);
                 if (!func_match_ex) continue;
-                panel_fast_exe(p_status_ex, W_R | (~data->data[2] & 0x01));
+                panel_fast_exe(W_R | (~data->data[2] & 0x01), _j);
             });
         }
-        panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+        panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
 
@@ -777,7 +918,7 @@ static void panel_later_mode(FUNC_PARAMS)
         bool group_match = (data->data[3] == p_cfg->group || data->data[3] == 0xFF) &&
                            !(data_src != THIS && data->data[3] == 0x00);
         if (!func_match || !group_match) continue;
-        panel_fast_exe(p_status, 0b00100110 | (data->data[2] & 0x01));
+        panel_fast_exe(0b00100110 | (data->data[2] & 0x01), _i);
     });
 }
 
@@ -788,7 +929,7 @@ static void panel_chect_out(FUNC_PARAMS)
         bool group_match = (data->data[3] == p_cfg->group || data->data[3] == 0xFF) &&
                            !(data_src != THIS && data->data[3] == 0x00);
         if (!func_match || !group_match) continue;
-        panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+        panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
 
@@ -799,7 +940,7 @@ static void panel_sos_mode(FUNC_PARAMS)
         bool group_match = (data->data[3] == p_cfg->group || data->data[3] == 0xFF) &&
                            !(data_src != THIS && data->data[3] == 0x00);
         if (!func_match || !group_match) continue;
-        panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+        panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
 
@@ -810,7 +951,7 @@ static void panel_service(FUNC_PARAMS)
         bool group_match = (data->data[3] == p_cfg->group || data->data[3] == 0xFF) &&
                            !(data_src != THIS && data->data[3] == 0x00);
         if (!func_match || !group_match) continue;
-        panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+        panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
 
@@ -826,9 +967,9 @@ static void panel_curtain_open(FUNC_PARAMS)
             bool func_match_ex  = (p_cfg_ex->func == CURTAIN_CLOSE);
             bool group_match_ex = (data->data[3] == p_cfg->group || data->data[3] == 0xFF);
             if (!func_match_ex || !group_match_ex) continue;
-            panel_fast_exe(p_status_ex, R_RS | 0x00);
+            panel_fast_exe(R_RS | 0x00, _j);
         });
-        panel_fast_exe(p_status, WS_RS | 0x01);
+        panel_fast_exe(WS_RS | 0x01, _i);
     });
 }
 
@@ -845,9 +986,9 @@ static void panel_curtain_close(FUNC_PARAMS)
             bool func_match_ex  = (p_cfg_ex->func == CURTAIN_OPEN);
             bool group_match_ex = (data->data[3] == p_cfg->group || data->data[3] == 0xFF);
             if (!func_match_ex || !group_match_ex) continue;
-            panel_fast_exe(p_status_ex, R_RS | 0x00);
+            panel_fast_exe(R_RS | 0x00, _j);
         });
-        panel_fast_exe(p_status, WS_RS | 0x01);
+        panel_fast_exe(WS_RS | 0x01, _i);
     });
 }
 
@@ -861,7 +1002,7 @@ static void panel_curtain_stop(FUNC_PARAMS)
         bool relay_short = p_status->r_short;
 
         if (!func_match || !group_match || !relay_short) continue;
-        panel_fast_exe(p_status, 0b00111010 | 0x00);
+        panel_fast_exe(0b00111010 | 0x00, _i);
     });
 }
 
@@ -872,7 +1013,7 @@ static void panel_scene_mode(FUNC_PARAMS)
         if (!area_match) continue;
         bool is_scene_mode = (p_cfg->func == SCENE_MODE);
         if (is_scene_mode) {
-            panel_fast_exe(p_status, W_R | 0x00); // Close all scene's keys in the same "area" of this panel
+            panel_fast_exe(W_R | 0x00, _i); // Close all scene's keys in the same "area" of this panel
         }
 
         uint8_t mask = data->data[7] & p_cfg->scene_group;
@@ -886,9 +1027,9 @@ static void panel_scene_mode(FUNC_PARAMS)
                         bool func_match_ex  = (p_cfg_ex->func == CURTAIN_CLOSE);
                         bool group_match_ex = (data->data[3] == p_cfg->group || data->data[3] == 0xFF);
                         if (!func_match_ex || !group_match_ex) continue;
-                        panel_fast_exe(p_status_ex, R_RS | 0x00);
+                        panel_fast_exe(R_RS | 0x00, _j);
                     });
-                    panel_fast_exe(p_status, WS_RS | 0x01);
+                    panel_fast_exe(WS_RS | 0x01, _i);
                 }
                 break;
             case CURTAIN_CLOSE: // 勾选此场景的"窗帘关"
@@ -897,18 +1038,18 @@ static void panel_scene_mode(FUNC_PARAMS)
                         bool func_match_ex  = (p_cfg_ex->func == CURTAIN_OPEN);
                         bool group_match_ex = (data->data[3] == p_cfg->group || data->data[3] == 0xFF);
                         if (!func_match_ex || !group_match_ex) continue;
-                        panel_fast_exe(p_status_ex, R_RS | 0x00);
+                        panel_fast_exe(R_RS | 0x00, _j);
                     });
-                    panel_fast_exe(p_status, WS_RS | 0x01);
+                    panel_fast_exe(WS_RS | 0x01, _i);
                 }
                 break;
             case LIGHT_MODE:
             case SCENE_MODE:
             case ALL_ON_OFF:
-                panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+                panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
                 break;
             case DND_MODE: { // Select this scene's DND_MODE
-                panel_fast_exe(p_status, W_R | 0x00);
+                panel_fast_exe(W_R | 0x00, _i);
             } break;
             default:
                 break;
@@ -928,10 +1069,10 @@ static void panel_light_mode(FUNC_PARAMS)
         }
         if (data_src == THIS) {
             if (_i == data->data[8]) {
-                panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+                panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
             }
         } else {
-            panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+            panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
         }
     });
 }
@@ -943,7 +1084,7 @@ static void panel_night_light(FUNC_PARAMS) // 夜灯
         bool group_match = (data->data[3] == p_cfg->group || data->data[3] == 0xFF) &&
                            !(data_src != THIS && data->data[3] == 0x00);
         if (!func_match || !group_match) continue;
-        panel_fast_exe(p_status, W_R | (data->data[2] & 0x01));
+        panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
 #endif

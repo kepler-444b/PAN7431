@@ -75,7 +75,7 @@ void app_usart2_rx(usart2_rx_buf_t *buf)
 void app_rf_rx_check(rf_frame_t *buf)
 {
     reg_t *reg = app_get_reg();
-    APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
+    // APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
     uint16_t tag_device_addr = MAKE_U16(buf->rf_data[2], buf->rf_data[3]);
     uint16_t src_room_addr   = MAKE_U16(buf->rf_data[8], buf->rf_data[9]);
 
@@ -98,7 +98,6 @@ void app_rf_rx_check(rf_frame_t *buf)
     uint8_t data_len = buf->rf_data[10];
 
     static rf_frame_t rf_rx;
-
     switch (cmd) {
         case Request: {
             app_save_reg(4, &buf->rf_data[11], 5);
@@ -129,7 +128,19 @@ void app_rf_rx_check(rf_frame_t *buf)
             uint8_t *temp_data = &buf->rf_data[11];
             if (buf->rf_data[7] == 20) {
                 uint8_t reg_length = buf->rf_data[10]; // Data write length
-                app_save_cfg(temp_data, reg_length);   // Save cfg
+#if defined HW_6KEY
+                APP_PRINTF("key_number:%d\n", temp_data[38]);
+                if (temp_data[38] != SIM_1KEY && temp_data[38] != SIM_3KEY && temp_data[38] != SIM_6KEY) {
+                    APP_PRINTF("key_number error!\n");
+                    break;
+                }
+#elif defined HW_4KEY
+                if (temp_data[38] != SIM_1KEY && temp_data[38] != SIM_2KEY && temp_data[38] != SIM_6KEY) {
+                    APP_PRINTF("key_number error!\n");
+                    break;
+                }
+#endif
+                app_save_cfg(temp_data, reg_length); // Save cfg
             } else {
                 uint8_t reg_length = 1;
                 app_save_reg(reg_addr, temp_data, 1); // Save reg
@@ -354,7 +365,6 @@ static void app_creat_frame(rf_frame_t *frame, rf_frame_type type, const reg_t *
 static void app_save_cfg(uint8_t *cfg_data, uint8_t length)
 {
     static uint32_t temp_cfg[10];
-
     app_uint8_to_uint32(cfg_data, 40, temp_cfg, sizeof(temp_cfg));
     __disable_irq();
     bsp_flash_write(FLASH_BASE_ADDR, temp_cfg, sizeof(temp_cfg));

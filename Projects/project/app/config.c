@@ -50,6 +50,13 @@ void app_load_config(cfg_addr addr)
             if (read_data[0] == 0xFFFFFFFF) { // If the CFG is not configured,then the default CFG will be used
                 APP_PRINTF("cfg is null\n");
                 memcpy(new_data, DEF_PANEL_CONFIG, sizeof(DEF_PANEL_CONFIG));
+#if defined HW_6KEY
+                new_data[38]   = SIM_6KEY;
+                sim_key_number = SIM_6KEY;
+#elif defined HW_4KEY
+                new_data[38]   = SIM_4KEY;
+                sim_key_number = SIM_4KEY;
+#endif
             } else {
                 if (app_uint32_to_uint8(read_data, sizeof(read_data) / sizeof(read_data[0]), new_data, sizeof(new_data)) != true) {
                     APP_ERROR("app_uint32_to_uint8 error\n");
@@ -75,7 +82,7 @@ void app_load_config(cfg_addr addr)
                 new_data[3] = 0x04; // room_l
                 new_data[4] = 0x05; // forward_en
 #if defined PANEL
-                new_data[5] = KEY_NUMBER; // key_number
+                new_data[5] = sim_key_number; // key_number
 #endif
             } else {
                 if (app_uint32_to_uint8(read_data, sizeof(read_data) / sizeof(read_data[0]), new_data, sizeof(new_data)) != true) {
@@ -105,7 +112,7 @@ void app_load_config(cfg_addr addr)
             my_reg.room_h     = new_data[2];
             my_reg.room_l     = new_data[3];
             my_reg.forward_en = new_data[4];
-            my_reg.key        = new_data[5];
+            my_reg.key        = sim_key_number;
 #if 1
             APP_PRINTF("ver:%02X\n", my_reg.ver);
             APP_PRINTF("cpadd:%02X%02X\n", my_reg.cpadd_h, my_reg.cpadd_l);
