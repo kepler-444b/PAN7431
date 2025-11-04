@@ -761,8 +761,7 @@ static void set_panel_status(uint8_t idx, uint8_t flag, panel_action_e action)
     if (action == PANEL_DO_KEY_RELAY || action == PANEL_DO_RELAY_ONLY) {
         if (BIT4(flag)) my_panel_status[idx].r_cur = BIT0(flag);
         if (BIT5(flag)) {
-            my_panel_status[idx].r_short = BIT0(flag);
-            APP_PRINTF("idx:%d\n", idx);
+            my_panel_status[idx].r_short       = BIT0(flag);
             my_panel_status[idx].r_short_count = 0;
         }
     }

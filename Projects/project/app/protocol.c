@@ -186,6 +186,11 @@ void app_rf_rx_check(rf_frame_t *buf)
                 // DelayMs(1);
                 app_eventbus_publish(EVENT_LED_BLINK, NULL);
                 bsp_rs485_send_buf(rf_rx.rf_data, rf_rx.rf_len);
+#elif defined LIGHT_DRIVER_CT
+                static panel_frame_t temp_panel_frame;
+                memcpy(temp_panel_frame.data, data_p, data_len);
+                temp_panel_frame.length = data_len;
+                app_eventbus_publish(EVENT_LIGHT_RX, &temp_panel_frame);
 #endif
             }
         } break;
@@ -272,6 +277,7 @@ static void delay_forward_data(void *arg)
 
 void app_rf_tx(rf_frame_t *rf_tx, bool repeat)
 {
+    // APP_PRINTF_BUF("rf_tx", rf_tx->rf_data, rf_tx->rf_len);
     PAN211_WriteFIFO(rf_tx->rf_data, rf_tx->rf_len);
     PAN211_TxStart();
     if (repeat) {

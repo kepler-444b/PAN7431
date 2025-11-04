@@ -12,7 +12,7 @@
 #elif defined SETTER
 #define TYPE 0x7E
 #elif defined LIGHT_DRIVER_CT
-#define TYPE 0xFF
+#define TYPE 0x17
 #endif
 
 #define TX_DB 0x09 // TX power

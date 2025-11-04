@@ -3,33 +3,28 @@
 #include <string.h>
 #include "py32f0xx_hal_tim.h"
 #include "../bsp/bsp_uart.h"
-#include "../bsp/bsp_timer.h"
 #include "../app/curve_table.h"
 
-#define PWM_FREQ_HZ     1000       // 期望 PWM 频率 (Hz)
+#define PWM_FREQ_HZ     1000       // PWM 频率 (Hz)
 #define TIM_CLK_HZ      48000000UL // 系统时钟 48 MHz
 #define PWM_FADE_CH_MAX 4          // 最大4通道
 #define FADE_TIMER_MS   1          // 渐变更新间隔 (ms)
 
-#define ABS(x)          ((x) < 0 ? -(x) : (x))
-
 TIM_HandleTypeDef Timer1;
 TIM_OC_InitTypeDef pwmConfig;
 
-// 使用整数固定点 16.16 管理渐变索引
+// 使用整数管理渐变索引
 typedef struct {
     pwm_hw_pins pin;
-    uint32_t start_idx_fp;  // 固定点 16.16
-    uint32_t target_idx_fp; // 固定点 16.16
-    uint32_t current_idx_fp;
-    uint32_t step_inc_fp; // 每步增量
-    uint16_t steps_total;
-    uint16_t steps_done;
+    uint16_t start_idx;  // 起始索引
+    uint16_t target_idx; // 目标索引
+    uint16_t current_idx;
+    uint16_t fade_counter; // 当前步数
+    uint16_t fade_steps;   // 总步数
     bool active;
 } pwm_fade_ctrl_t;
 
 static pwm_fade_ctrl_t fade_channels[PWM_FADE_CH_MAX];
-
 static bool Timer1_initialized = false;
 
 static void timer1_init(uint32_t channel);
@@ -37,6 +32,7 @@ static void timer1_init(uint32_t channel);
 void pwm_hw_init(void)
 {
     memset(fade_channels, 0, sizeof(fade_channels));
+    // bsp_start_timer(9,)
 }
 
 bool app_pwm_hw_add_pin(pwm_hw_pins pin)
@@ -62,14 +58,17 @@ void app_set_pwm_hw_fade(pwm_hw_pins pin, uint16_t target_duty, uint16_t duratio
 
     pwm_fade_ctrl_t *ch = NULL;
     for (int i = 0; i < PWM_FADE_CH_MAX; i++) {
-        if (!fade_channels[i].active) {
+        if (fade_channels[i].pin == pin) {
+            // 如果通道已经在渐变中，打断它
             ch = &fade_channels[i];
             break;
+        }
+        if (!fade_channels[i].active && ch == NULL) {
+            ch = &fade_channels[i]; // 找到空闲通道备用
         }
     }
     if (!ch) return;
 
-    // 获取当前占空比索引
     uint16_t current_idx = 0;
     switch (pin) {
         case PWM_PA8:
@@ -81,14 +80,14 @@ void app_set_pwm_hw_fade(pwm_hw_pins pin, uint16_t target_duty, uint16_t duratio
         default:
             return;
     }
-    ch->pin            = pin;
-    ch->start_idx_fp   = current_idx << 16;
-    ch->target_idx_fp  = target_duty << 16;
-    ch->current_idx_fp = ch->start_idx_fp;
-    ch->steps_total    = (duration_ms + FADE_TIMER_MS - 1) / FADE_TIMER_MS;
-    ch->steps_done     = 0;
-    ch->active         = (ch->steps_total > 0 && ch->start_idx_fp != ch->target_idx_fp);
-    ch->step_inc_fp    = (ch->target_idx_fp - ch->start_idx_fp) / ch->steps_total;
+
+    ch->pin          = pin;
+    ch->start_idx    = current_idx;
+    ch->target_idx   = target_duty;
+    ch->current_idx  = current_idx;
+    ch->fade_steps   = (duration_ms + FADE_TIMER_MS - 1) / FADE_TIMER_MS;
+    ch->fade_counter = 0;
+    ch->active       = (ch->fade_steps > 0 && ch->start_idx != ch->target_idx);
 }
 
 void pwm_hw_set_duty(pwm_hw_pins pins, uint16_t duty_val)
@@ -127,8 +126,8 @@ static void timer1_init(uint32_t channel)
         pwmConfig.OCIdleState  = TIM_OCIDLESTATE_RESET;
         pwmConfig.Pulse        = 0;
         Timer1_initialized     = true;
-        HAL_TIM_Base_Start_IT(&Timer1); // 启动 TIM Base 并使能 Update 中断
-        HAL_NVIC_SetPriority(TIM1_BRK_UP_TRG_COM_IRQn, 2, 0);
+        HAL_TIM_Base_Start_IT(&Timer1);
+        HAL_NVIC_SetPriority(TIM1_BRK_UP_TRG_COM_IRQn, 0, 1);
         HAL_NVIC_EnableIRQ(TIM1_BRK_UP_TRG_COM_IRQn);
     }
 
@@ -143,26 +142,38 @@ static void pwm_hw_fade_update(void)
         pwm_fade_ctrl_t *ch = &fade_channels[i];
         if (!ch->active) continue;
 
-        if (ch->steps_done >= ch->steps_total) {
-            uint16_t idx = ch->target_idx_fp >> 16;
-            if (idx >= FADE_TABLE_SIZE) idx = FADE_TABLE_SIZE - 1;
-            uint32_t duty = fade_table[idx] * Timer1.Init.Period / 1000;
-            pwm_hw_set_duty(ch->pin, duty);
-            ch->active = false;
-            continue;
-        }
+        ch->fade_counter++;
 
-        ch->current_idx_fp += ch->step_inc_fp;
-        uint16_t idx = ch->current_idx_fp >> 16;
+        // 计算比例索引
+        uint16_t idx = ch->fade_counter * FADE_TABLE_SIZE / ch->fade_steps;
         if (idx >= FADE_TABLE_SIZE) idx = FADE_TABLE_SIZE - 1;
 
-        uint32_t duty = fade_table[idx] * Timer1.Init.Period / 1000;
+        // 按曲线计算占空比
+        int32_t range   = (int32_t)ch->target_idx - ch->start_idx;
+        int32_t new_idx = ch->start_idx + (range * idx) / FADE_TABLE_SIZE;
+
+        if (new_idx >= FADE_TABLE_SIZE) new_idx = FADE_TABLE_SIZE - 1;
+        uint32_t duty = fade_table[new_idx] * Timer1.Init.Period / 1000;
+
         pwm_hw_set_duty(ch->pin, duty);
-        ch->steps_done++;
+        ch->current_idx = new_idx;
+
+        if (ch->fade_counter >= ch->fade_steps) {
+            // 渐变完成
+            ch->current_idx = ch->target_idx;
+            duty            = fade_table[ch->target_idx] * Timer1.Init.Period / 1000;
+            pwm_hw_set_duty(ch->pin, duty);
+            ch->active = false;
+        }
     }
 }
+
 void TIM1_BRK_UP_TRG_COM_IRQHandler(void)
 {
-    HAL_TIM_IRQHandler(&Timer1);
-    pwm_hw_fade_update();
+    if (__HAL_TIM_GET_FLAG(&Timer1, TIM_FLAG_UPDATE)) {
+        __HAL_TIM_CLEAR_IT(&Timer1, TIM_IT_UPDATE);
+        pwm_hw_fade_update();
+    }
+    // HAL_TIM_IRQHandler(&Timer1);
+    // __HAL_TIM_CLEAR_IT(&Timer1, TIM_IT_UPDATE);
 }

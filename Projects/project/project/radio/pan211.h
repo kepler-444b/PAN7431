@@ -97,12 +97,12 @@ void PAN211_ReadFIFO(unsigned char *Buffer, unsigned char Size);
  */
 void DelayMs(unsigned short Ms);
 
-#define DELAY() \
-    __NOP();    \
-    __NOP();    \
-    __NOP();    \
-    __NOP();    \
-    __NOP();
+// #define DELAY() \
+//     __NOP();    \
+//     __NOP();    \
+//     __NOP();    \
+//     __NOP();    \
+//     __NOP();
 
 /**
  * @brief 检测是否有中断事件

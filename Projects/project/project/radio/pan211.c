@@ -119,12 +119,17 @@ RF_Gpio_Init(void)
 #define SPI_DATA_LOW    HAL_GPIO_WritePin(GPIOF, GPIO_PIN_3, GPIO_PIN_RESET) /* 将SPI_DATA引脚拉低 */
 #define SPI_DATA_STATUS HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_1)                  /* 检测SPI_DATA引脚状态 */
 #define IRQ_STATUS      HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_0)
-#define DELAY() \
-    __NOP();    \
-    __NOP();    \
-    __NOP();    \
-    __NOP();    \
-    __NOP();
+// #define DELAY() \
+//     __NOP();    \
+//     __NOP();    \
+//     __NOP();    \
+//     __NOP();    \
+//     __NOP();
+#define DELAY()                          \
+    do {                                 \
+        volatile int i;                  \
+        for (i = 0; i < 5; i++) __NOP(); \
+    } while (0)
 
 unsigned char SPI_RW(unsigned char rw_data)
 {

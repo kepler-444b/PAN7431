@@ -12,6 +12,7 @@ typedef enum {
     EVENT_REQUEST_NETWORK, // 申请组网
     EVENT_UART1_RX,        // UART1接收
     EVENT_LED_BLINK,
+    EVENT_LIGHT_RX,
 
     // 添加更多事件类型...
     EVENT_COUNT // 自动计算事件数量
