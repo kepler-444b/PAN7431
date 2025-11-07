@@ -190,6 +190,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                 static panel_frame_t temp_panel_frame;
                 memcpy(temp_panel_frame.data, data_p, data_len);
                 temp_panel_frame.length = data_len;
+                app_eventbus_publish(EVENT_LED_BLINK, NULL);
                 app_eventbus_publish(EVENT_LIGHT_RX, &temp_panel_frame);
 #endif
             }
