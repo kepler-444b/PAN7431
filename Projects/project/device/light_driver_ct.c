@@ -67,9 +67,9 @@ static void light_devier_ct_event_handler(event_type_e event, void *params)
 
 static void data_cb(panel_frame_t *data)
 {
-    uint8_t frame_head  = data->data[0];
-    uint8_t cmd         = data->data[1];
-    uint8_t value       = data->data[2];
+    uint8_t frame_head = data->data[0];
+    uint8_t cmd        = data->data[1];
+    uint8_t value      = data->data[2];
     // uint8_t status      = data->data[3];
     uint8_t scene_group = data->data[7];
     APP_PRINTF_BUF("data", data->data, data->length);

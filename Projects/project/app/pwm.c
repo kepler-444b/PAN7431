@@ -8,7 +8,7 @@
 
 #define SYSTEM_CLOCK_FREQ 48000000 // 系统时钟频率(48MHz)
 #define TIMER_PERIOD      24       // 25 us 触发一次中断
-#define PWM_RESOLUTION    1000     // PWM分辨率(2000)
+#define PWM_RESOLUTION    1000     // PWM分辨率(1000)
 #define MAX_FADE_TIME_MS  5000     // 最大渐变时间(5秒)
 #define FADE_UPDATE_MS    1        // 渐变更新间隔(10ms)
 #define PWM_MIN_DUTY      50       // 最低占空比
