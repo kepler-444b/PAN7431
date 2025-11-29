@@ -129,7 +129,7 @@ targets:
     toolchainConfigMap:
       AC6:
         archExtensions: ""
-        cpuType: Cortex-M0+
+        cpuType: Cortex-M0
         floatingPointHardware: none
         options:
           version: 3
@@ -239,5 +239,5 @@ targets:
           vendor: "null"
         otherCmds: ""
         proType: 1
-        speed: 8000
+        speed: 5000
     uploader: JLink
