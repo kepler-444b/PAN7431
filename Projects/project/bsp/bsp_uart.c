@@ -3,6 +3,10 @@
 #include "../app/gpio.h"
 #include "../device/device_manager.h"
 
+#if defined USE_RTT
+#include "../../rtt/SEGGER_RTT.h"
+#endif
+
 UART_HandleTypeDef usart1_handle         = {0};
 static usart1_rx_buf_t uart1_buf         = {0};
 static usart_rx1_callback_t rx1_callback = NULL;
@@ -108,10 +112,10 @@ void bsp_uart2_send(uint8_t data)
 }
 
 HAL_StatusTypeDef bsp_uart1_send_buf(uint8_t *data, uint8_t length)
-{ 
+{
     if (data == NULL || length == 0) {
         return HAL_ERROR;
-    } 
+    }
     return HAL_UART_Transmit(&usart1_handle, data, length, 1000);
 }
 
@@ -180,6 +184,11 @@ void USART2_IRQHandler(void)
 
 int fputc(int ch, FILE *f)
 {
+
+#if defined USE_RTT
+    SEGGER_RTT_PutChar(0, ch);
+#else
     bsp_uart2_send(ch);
+#endif
     return ch;
 }

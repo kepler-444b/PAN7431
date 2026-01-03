@@ -1,0 +1,4 @@
+device PY32F030x8
+if SWD
+speed 4000
+connect

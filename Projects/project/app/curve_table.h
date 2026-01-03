@@ -1,5 +1,4 @@
-#include <stdint.h>
-// 韦伯-费希纳定律PWM亮度查找表
+#include <stdint.h> 
 #define FADE_TABLE_SIZE 1000
 static const uint16_t fade_table[FADE_TABLE_SIZE] = {
     1, 2, 3, 4, 5, 6, 7, 8, 9,

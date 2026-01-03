@@ -1,11 +1,11 @@
-#include <string.h>
 #include "protocol.h"
-#include "pan211.h"
 #include "../app/base.h"
-#include "../bsp/bsp_uart.h"
-#include "../app/eventbus.h"
 #include "../app/config.h"
+#include "../app/eventbus.h"
 #include "../bsp/bsp_timer.h"
+#include "../bsp/bsp_uart.h"
+#include "pan211.h"
+#include <string.h>
 
 void app_rf_rx_check(rf_frame_t *buf);
 void app_usart1_rx(usart1_rx_buf_t *buf);
@@ -17,6 +17,7 @@ static void app_creat_frame(rf_frame_t *frame, rf_frame_type type, const reg_t *
 static void delay_send_find_ack(void *arg);
 static void delay_forward_data(void *arg);
 static void delay_switch_channel(void *arg);
+static void delay_clear_last_data(void *arg);
 
 static uint8_t last_data[52] = {0};
 
@@ -135,7 +136,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                     break;
                 }
 #elif defined HW_4KEY
-                if (temp_data[38] != SIM_1KEY && temp_data[38] != SIM_2KEY && temp_data[38] != SIM_6KEY) {
+                if (temp_data[38] != SIM_1KEY && temp_data[38] != SIM_2KEY && temp_data[38] != SIM_4KEY) {
                     APP_PRINTF("key_number error!\n");
                     break;
                 }
@@ -175,6 +176,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                 bsp_start_timer(6, delay_forward, delay_forward_data, &rf_rx, TMR_ONCE_MODE);
                 // Update last data cache
                 memcpy(last_data, data_p, data_len);
+                bsp_start_timer(10, 2000, delay_clear_last_data, NULL, TMR_ONCE_MODE);
 #if defined PANEL
                 // Execute local panel action
                 static panel_frame_t temp_panel_frame;
@@ -276,6 +278,12 @@ static void delay_forward_data(void *arg)
     app_rf_tx(frame, true);
 }
 
+static void delay_clear_last_data(void *arg)
+{
+    memset(last_data, 0, sizeof(last_data));
+    // APP_PRINTF("delay_clear_last_data\n");
+}
+
 void app_rf_tx(rf_frame_t *rf_tx, bool repeat)
 {
     // APP_PRINTF_BUF("rf_tx", rf_tx->rf_data, rf_tx->rf_len);
@@ -304,7 +312,9 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
             send_frame.data[1] = CURTAIN_STOP;
             send_frame.data[2] = false;
         }
-    } else if (cmd_type == COMMON_CMD || (cmd_type == SPECIAL_CMD && temp_cfg[key_number].func == LATER_MODE)) {
+    }
+#if 0
+    else if (cmd_type == COMMON_CMD || (cmd_type == SPECIAL_CMD && temp_cfg[key_number].func == LATER_MODE)) {
         // 普通命令 或 特殊命令里的"请稍后"
         send_frame.data[1] = temp_cfg[key_number].func;
         send_frame.data[2] = key_status;
@@ -318,6 +328,20 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
             send_frame.data[2] = key_status; // default
         }
     }
+#else
+    else if (cmd_type == COMMON_CMD) {
+        send_frame.data[1] = temp_cfg[key_number].func;
+        send_frame.data[2] = key_status; // default
+
+        if (temp_cfg[key_number].func == SCENE_MODE) {
+            if (BIT4(temp_cfg[key_number].perm)) { // "只开"
+                send_frame.data[2] = true;
+            }
+        }
+    }
+
+#endif
+
     // Set group,area,perm and scene_group
     send_frame.data[3] = temp_cfg[key_number].group;
     send_frame.data[4] = temp_cfg[key_number].area;

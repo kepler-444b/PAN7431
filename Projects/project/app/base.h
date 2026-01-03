@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #define PUYA_UID_BASE          (0x1FFF0E00UL) // UID 起始地址
 #define PUYA_UID_SIZE          128            // UID 大小(字节)
