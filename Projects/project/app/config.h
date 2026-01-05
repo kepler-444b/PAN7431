@@ -82,6 +82,7 @@ void app_load_config(cfg_addr addr);
 
 const panel_cfg_t *app_get_panel_cfg(void);
 const uint8_t app_get_panel_type(void);
+const uint8_t *app_get_cfg(void);
 
 reg_t *app_get_reg(void);
 uint8_t app_get_sim_key_number(void);

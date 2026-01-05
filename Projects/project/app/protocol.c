@@ -76,7 +76,7 @@ void app_usart2_rx(usart2_rx_buf_t *buf)
 void app_rf_rx_check(rf_frame_t *buf)
 {
     reg_t *reg = app_get_reg();
-    // APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
+    APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
     uint16_t tag_device_addr = MAKE_U16(buf->rf_data[2], buf->rf_data[3]);
     uint16_t src_room_addr   = MAKE_U16(buf->rf_data[8], buf->rf_data[9]);
 
@@ -113,15 +113,24 @@ void app_rf_rx_check(rf_frame_t *buf)
         case RReg: {
             uint8_t read_addr   = buf->rf_data[11];
             uint8_t read_length = buf->rf_data[12];
+            app_creat_frame(&rf_rx, RReg, reg); // 构造基础帧头
 
-            APP_PRINTF("read_addr:%d read_length:%d\n", read_addr, read_length);
-            app_creat_frame(&rf_rx, SBAnswer, reg);
-            rf_rx.rf_data[10] = read_length;
+            if (read_addr != 20) {
+                APP_PRINTF("read_addr:%d read_length:%d\n", read_addr, read_length);
+                rf_rx.rf_data[10] = read_length;
 
-            memcpy(&rf_rx.rf_data[11], (uint8_t *)&reg + read_addr, read_length);
-            rf_rx.rf_len = RF_PAYLOAD;
-            app_rf_tx(&rf_rx, true);
-            APP_PRINTF_BUF("RReg_ack", &rf_rx.rf_data, rf_rx.rf_len);
+                memcpy(&rf_rx.rf_data[11], &reg[read_addr], read_length);
+                rf_rx.rf_len = RF_PAYLOAD;
+                app_rf_tx(&rf_rx, true);
+
+            } else if (read_addr == 20 && read_length == 40) {
+                APP_PRINTF("read_cfg\n");
+                rf_rx.rf_data[10] = read_length;
+
+                memcpy(&rf_rx.rf_data[11], app_get_cfg(), 40);
+                rf_rx.rf_len = RF_PAYLOAD;
+                app_rf_tx(&rf_rx, true);
+            }
 
         } break;
         case WReg: {
@@ -237,12 +246,24 @@ void app_rf_rx_check(rf_frame_t *buf)
                 APP_PRINTF("[FindSB] tag_device_type:%02X my_device_type:%02X\n", tag_device_type, reg->cplei);
                 return;
             }
-
             app_creat_frame(&rf_rx, SBAnswer, reg);
-            rf_rx.rf_data[10] = 0x14;
-            memcpy(&rf_rx.rf_data[11], &reg->ver, 0x14);
-            rf_rx.rf_len = RF_PAYLOAD;
+            rf_rx.rf_data[10] = 32; // 32 个字节(20字节的reg + 12字节的按键功能)
 
+            uint8_t palyload[32] = {0};
+            memcpy(palyload, &reg->ver, 20); // 20 字节的reg
+            const panel_cfg_t *temp_cfg = app_get_panel_cfg();
+
+            for (uint8_t i = 0; i < CONFIG_NUMBER; i++) { // 12字节的按键功能及分组
+                palyload[i + 20] = temp_cfg[i].func;
+                if (temp_cfg[i].func == SCENE_MODE) {
+                    palyload[i + 26] = temp_cfg[i].area;
+                } else {
+                    palyload[i + 26] = temp_cfg[i].scene_group;
+                }
+            }
+            memcpy(&rf_rx.rf_data[11], palyload, sizeof(palyload)); // 拷贝到发送数据
+            rf_rx.rf_len = RF_PAYLOAD;
+            APP_PRINTF_BUF("rf_rx", rf_rx.rf_data, rf_rx.rf_len);
             uint32_t delay_ms = (uint32_t)(reg->zuwflag * 50 + BASE_DELAY);
             bsp_start_timer(5, delay_ms, delay_send_find_ack, &rf_rx, TMR_ONCE_MODE);
         } break;
@@ -262,6 +283,7 @@ static void delay_send_find_ack(void *arg)
 {
     APP_PRINTF("FindSB\n");
     rf_frame_t *frame = (rf_frame_t *)arg;
+
     app_rf_tx(frame, true);
     bsp_stop_timer(5);
 }

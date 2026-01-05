@@ -4,6 +4,13 @@
 #include <stdbool.h>
 #include "../app/app.h"
 
+/*
+
+2026.1.5
+1.在查找设备 FindSB 时,会将面板上的基本按键信息,一同回复给上位机(按键功能和按键分组);
+2.读寄存器的时候,由于一包数据发送不完,将reg和cfg分开,以读取地址是否为20来区分;
+
+*/
 #define BASE_DELAY   10
 
 #define DEFAULT_ADDR (unsigned char[5]){0x5A, 0x4B, 0x3C, 0x2D, 0x0F}

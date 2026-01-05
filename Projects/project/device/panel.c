@@ -296,7 +296,7 @@ static void process_panel_adc(ADC_PARAMS)
                     break;
                 }
                 case SIM_3KEY: {
-                    const uint8_t key_pairs[][2] = {{0, 1}, {2, 3}, {4, 5}}; // 映射关系
+                    const uint8_t key_pairs[][2] = {{0, 1}, {4, 5}, {2, 3}}; // 映射关系
                     for (int pair_idx = 0; pair_idx < 3; pair_idx++) {
                         uint8_t main_key   = key_pairs[pair_idx][0]; // 主按键
                         uint8_t mapped_key = key_pairs[pair_idx][1]; // 从键
@@ -328,7 +328,7 @@ static void process_panel_adc(ADC_PARAMS)
 static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t main_key, uint8_t slave_key, bool is_toggle)
 {
 
-    // APP_PRINTF("cmd_idx:%d main_key:%d slave_key:%d\n", cmd_idx, main_key, slave_key);
+    APP_PRINTF("cmd_idx:%d main_key:%d slave_key:%d\n", cmd_idx, main_key, slave_key);
     bool is_special = temp_status[cmd_idx].r_short;
     APP_PRINTF("is_special:%d\n", is_special);
     if (is_toggle) { // 切换按键状态
@@ -416,7 +416,6 @@ static void process_exe_status(TIMER_PARAMS)
         if (++temp_common->check_w_led_count >= 1000) {
             bool has_w_led_on   = false;
             uint8_t sim_key_num = app_get_sim_key_number();
-            APP_PRINTF("sim_key_num:%d\n", sim_key_num);
             for (uint8_t i = 0; i < sim_key_num; i++) {
                 if (temp_status[i].w_cur) {
                     has_w_led_on = true;
@@ -834,11 +833,11 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
                     set_panel_status(0, flag, PANEL_DO_KEY_LIGHT);
                     set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
                 } else if (idx == 1) {
-                    set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
-                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
-                } else if (idx == 2) {
                     set_panel_status(4, flag, PANEL_DO_KEY_LIGHT);
                     set_panel_status(5, flag, PANEL_DO_KEY_LIGHT);
+                } else if (idx == 2) {
+                    set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
                 }
                 set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY);
             } else {

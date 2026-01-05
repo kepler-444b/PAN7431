@@ -25,10 +25,11 @@ static void app_load_panel_a11(uint8_t *data, uint8_t length);
 static void app_panel_get_relay_num(uint8_t *data, const gpio_pin_t *relay_map);
 #endif
 
+static uint32_t read_data[10] = {0};
+static uint8_t new_data[40]   = {0};
+
 void app_load_config(cfg_addr addr)
 {
-    static uint32_t read_data[10] = {0};
-    static uint8_t new_data[40]   = {0};
     memset(read_data, 0, sizeof(read_data));
     memset(new_data, 0, sizeof(new_data));
 
@@ -200,10 +201,28 @@ const panel_cfg_t *app_get_panel_cfg(void)
 {
     return my_panel_cfg;
 }
+
+const uint8_t *app_get_cfg(void)
+{
+    memset(read_data, 0, sizeof(read_data));
+    memset(new_data, 0, sizeof(new_data));
+
+    __disable_irq();
+    if (bsp_flash_read(FLASH_BASE_ADDR, read_data, sizeof(read_data)) != FLASH_IF_OK) {
+        APP_ERROR("app_flash_read failed\n");
+    }
+    __enable_irq();
+
+    app_uint32_to_uint8(read_data, sizeof(read_data) / sizeof(read_data[0]), new_data, sizeof(new_data));
+
+    return new_data;
+}
+
 const uint8_t app_get_panel_type(void)
 {
     return panel_type;
 }
+
 #endif
 
 reg_t *app_get_reg(void)
