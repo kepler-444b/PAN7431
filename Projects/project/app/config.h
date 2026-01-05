@@ -4,7 +4,7 @@
 #include "../bsp/bsp_pcb.h"
 #include "../bsp/bsp_flash.h"
 
-// Read-only item
+// 只读项目
 #define VER 0x10 // software version
 
 #if defined REPEATER

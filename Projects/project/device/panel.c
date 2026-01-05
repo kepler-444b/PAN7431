@@ -115,8 +115,8 @@ typedef struct
     bool check_w_led;           // 检测 LED
     uint16_t check_w_led_count; // 延时检测 LED
 
-    bool curtain_open;                    // 窗帘开(迎宾)
-    uint8_t curtain_open_idx[KEY_NUMBER]; // 用于存放窗帘开(迎宾)的按键索引
+    bool curtain_open;                       // 窗帘开(迎宾)
+    uint8_t curtain_open_idx[CONFIG_NUMBER]; // 用于存放窗帘开(迎宾)的按键索引
     uint16_t curtain_open_count;
 
     bool led_filck;           // 闪烁
@@ -198,7 +198,7 @@ static void panel_night_light(FUNC_PARAMS);
 
 static common_panel_t my_common_panel;
 static adc_value_t my_adc_value;
-static bool save_led_status[KEY_NUMBER];
+static bool save_led_status[CONFIG_NUMBER];
 
 void panel_device_init(void)
 {
@@ -215,7 +215,7 @@ void panel_device_init(void)
     app_pwm_add_pin(PA8);
     app_set_pwm_fade(PA8, 1000, 1000);
 
-    if (DEVICE_PANEL == app_get_panel_type()) { // 只有受控电面板上电执行""
+    if (DEVICE_PANEL == app_get_panel_type()) { // 只有受控电面板上电执行"迎宾"
         panel_power_status();
     } else {
         my_common_panel.check_w_led = true; // 检查开启的白灯
@@ -239,7 +239,7 @@ static void panel_read_adc(void *arg)
 static void process_panel_adc(ADC_PARAMS)
 {
     // APP_PRINTF("vol:%d\n", adc_value->vol);
-    for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+    for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
         if (adc_value->vol < temp_status[i].vol_range.min || adc_value->vol > temp_status[i].vol_range.max) {
             if (adc_value->vol >= MIN_VOL && adc_value->vol <= MAX_VOL) {
                 temp_status[i].k_press      = false;
@@ -261,7 +261,6 @@ static void process_panel_adc(ADC_PARAMS)
         }
         if (!temp_status[i].k_press && !temp_common->enter_config) { // 处理按键按下
             const panel_cfg_t *temp_cfg = app_get_panel_cfg();
-
             // 外层根据条件设置是否允许翻转
             bool is_toggle   = true;
             bool special_key = (BIT2(temp_cfg[i].perm) && !BIT4(temp_cfg[i].perm)); // 特殊按键
@@ -270,11 +269,11 @@ static void process_panel_adc(ADC_PARAMS)
                 is_toggle = false;
             }
             uint8_t sim_key_number = app_get_sim_key_number();
-#if defined HW_6KEY
+
             switch (sim_key_number) {
                 case SIM_1KEY: {
                     const uint8_t key_pairs[][2] = {{0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}}; // 映射关系
-                    for (int pair_idx = 0; pair_idx < KEY_NUMBER; pair_idx++) {
+                    for (int pair_idx = 0; pair_idx < CONFIG_NUMBER; pair_idx++) {
                         uint8_t main_key   = key_pairs[pair_idx][0];
                         uint8_t mapped_key = key_pairs[pair_idx][1];
                         if (i == main_key || i == mapped_key) {
@@ -284,39 +283,6 @@ static void process_panel_adc(ADC_PARAMS)
                     }
                     break;
                 }
-                case SIM_6KEY:
-                    panel_key_map(temp_status, i, i, 0xFF, is_toggle);
-                    break;
-                case SIM_3KEY: {
-                    const uint8_t key_pairs[][2] = {{0, 1}, {2, 3}, {4, 5}}; // 映射关系
-                    for (int pair_idx = 0; pair_idx < 3; pair_idx++) {
-                        uint8_t main_key   = key_pairs[pair_idx][0]; // 主按键
-                        uint8_t mapped_key = key_pairs[pair_idx][1]; // 从键
-                        if (i == main_key || i == mapped_key) {
-                            panel_key_map(temp_status, pair_idx, main_key, mapped_key, is_toggle);
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-#elif defined HW_4KEY
-            switch (sim_key_number) {
-                case SIM_1KEY: {
-                    const uint8_t key_pairs[][2] = {{0, 1}, {0, 2}, {0, 3}}; // 映射关系
-                    for (int pair_idx = 0; pair_idx < KEY_NUMBER; pair_idx++) {
-                        uint8_t main_key   = key_pairs[pair_idx][0];
-                        uint8_t mapped_key = key_pairs[pair_idx][1];
-                        if (i == main_key || i == mapped_key) {
-                            panel_key_map(temp_status, 0, main_key, mapped_key, is_toggle);
-                            break;
-                        }
-                    }
-                    break;
-                }
-                case SIM_4KEY:
-                    panel_key_map(temp_status, i, i, 0xFF, is_toggle);
-                    break;
                 case SIM_2KEY: {
                     const uint8_t key_pairs[][2] = {{0, 1}, {2, 3}}; // 映射关系
                     for (int pair_idx = 0; pair_idx < 3; pair_idx++) {
@@ -329,11 +295,26 @@ static void process_panel_adc(ADC_PARAMS)
                     }
                     break;
                 }
+                case SIM_3KEY: {
+                    const uint8_t key_pairs[][2] = {{0, 1}, {2, 3}, {4, 5}}; // 映射关系
+                    for (int pair_idx = 0; pair_idx < 3; pair_idx++) {
+                        uint8_t main_key   = key_pairs[pair_idx][0]; // 主按键
+                        uint8_t mapped_key = key_pairs[pair_idx][1]; // 从键
+                        if (i == main_key || i == mapped_key) {
+                            panel_key_map(temp_status, pair_idx, main_key, mapped_key, is_toggle);
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case SIM_4KEY:
+                case SIM_6KEY:
+                    panel_key_map(temp_status, i, i, 0xFF, is_toggle);
+                    break;
             }
-#endif
+
             temp_common->key_long_press = true;
             temp_common->key_long_count = 0;
-
             continue;
         }
         // 处理长按
@@ -361,7 +342,7 @@ static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t 
             temp_status[slave_key].k_status = false;
         }
     }
-    // is_special |= temp_status[main_key].r_short;
+
     // 发送命令
     app_send_cmd(cmd_idx, (is_special ? 0x00 : temp_status[main_key].k_status), PANEL_HEAD, (is_special ? SPECIAL_CMD : COMMON_CMD));
 
@@ -433,8 +414,10 @@ static void process_exe_status(TIMER_PARAMS)
 
     if (temp_common->check_w_led) { // 检查白灯个数
         if (++temp_common->check_w_led_count >= 1000) {
-            bool has_w_led_on = false;
-            for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+            bool has_w_led_on   = false;
+            uint8_t sim_key_num = app_get_sim_key_number();
+            APP_PRINTF("sim_key_num:%d\n", sim_key_num);
+            for (uint8_t i = 0; i < sim_key_num; i++) {
                 if (temp_status[i].w_cur) {
                     has_w_led_on = true;
                     break;
@@ -452,7 +435,7 @@ static void process_exe_status(TIMER_PARAMS)
 
     if (temp_common->curtain_open) { // 延时执行"窗帘开"的迎宾状态
         if (++temp_common->curtain_open_count >= 3000) {
-            for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+            for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
                 if (temp_common->curtain_open_idx[i] == true) {
                     panel_fast_exe(WS_RS | 0x01, i);
                 }
@@ -498,8 +481,7 @@ static void process_exe_status(TIMER_PARAMS)
         }
         if (p_status->w_cur != p_status->w_last) { // 更新白灯状态
             APP_SET_GPIO(p_cfg->led_w_pin, !p_status->w_cur);
-            p_status->w_last         = p_status->w_cur;
-            temp_common->check_w_led = true;
+            p_status->w_last = p_status->w_cur;
         }
 
         if (p_status->r_cur != p_status->r_last) { // 更新继电器状态
@@ -521,7 +503,7 @@ static void process_exe_status(TIMER_PARAMS)
 // 保存 LED 状态
 static void panel_exe_led_status(led_statue_e type)
 {
-    for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+    for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
         switch (type) {
             case CLOSE:
                 my_panel_status[i].w_cur = false;
@@ -620,11 +602,13 @@ static void process_cmd_check(FUNC_PARAMS)
         }
         // 来自任意键(唤醒)
         if (!skip_outer) {
-            my_common_panel.all_close = false; // 唤醒(执行"背光总关")
+            my_common_panel.all_close   = false; // 唤醒(执行"背光总关")
+            my_common_panel.check_w_led = true;  // 检查白灯
             return;
         }
     }
-    my_common_panel.bl_open = true;
+    my_common_panel.bl_open     = true; // 开启背光
+    my_common_panel.check_w_led = true; // 检查白灯
 
     switch (data->data[1]) {
         case ALL_CLOSE:
@@ -714,7 +698,7 @@ static void process_led_flicker(common_panel_t *common_panel)
 
 static void panel_ctrl_led_all(bool led_state)
 {
-    for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+    for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
         my_panel_status[i].w_cur = led_state;
     }
 }
@@ -815,8 +799,6 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
     // BIT1:reserve
     // BIT0:reserve
     uint8_t sim_key_number = app_get_sim_key_number();
-
-#if defined HW_6KEY
     switch (sim_key_number) {
         case SIM_1KEY: {
             if (idx == 0) {
@@ -828,6 +810,20 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
                     set_panel_status(4, flag, PANEL_DO_KEY_LIGHT);
                     set_panel_status(5, flag, PANEL_DO_KEY_LIGHT);
                 }
+            } else {
+                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
+            }
+        } break;
+        case SIM_2KEY: {
+            if (idx == 0 || idx == 1) {
+                if (idx == 0) {
+                    set_panel_status(0, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
+                } else if (idx == 1) {
+                    set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
+                }
+                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY);
             } else {
                 set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
             }
@@ -850,49 +846,13 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
             }
             break;
         }
+        case SIM_4KEY:
         case SIM_6KEY:
             set_panel_status(idx, flag, true);
             break;
         default:
             break;
     }
-#elif defined HW_4KEY
-
-    switch (sim_key_number) {
-
-        case SIM_1KEY: {
-            if (idx == 0) {
-                if (idx == 0) {
-                    set_panel_status(0, flag, PANEL_DO_KEY_RELAY);
-                    set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
-                    set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
-                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
-                }
-            } else {
-                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
-            }
-        } break;
-        case SIM_2KEY: {
-            if (idx == 0 || idx == 1) {
-                if (idx == 0) {
-                    set_panel_status(0, flag, PANEL_DO_KEY_LIGHT);
-                    set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
-                } else if (idx == 1) {
-                    set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
-                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
-                }
-                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY);
-            } else {
-                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
-            }
-        } break;
-        case SIM_4KEY: {
-            set_panel_status(idx, flag, true);
-        } break;
-        default:
-            break;
-    }
-#endif
 }
 
 static void set_panel_status(uint8_t idx, uint8_t flag, panel_action_e action)

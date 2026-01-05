@@ -127,22 +127,16 @@ void app_rf_rx_check(rf_frame_t *buf)
         case WReg: {
             uint8_t reg_addr   = buf->rf_data[7]; // The starting address of the register
             uint8_t *temp_data = &buf->rf_data[11];
-            if (buf->rf_data[7] == 20) {
+            if (buf->rf_data[7] == 20) { // 写 CFG
+
                 uint8_t reg_length = buf->rf_data[10]; // Data write length
-#if defined HW_6KEY
-                APP_PRINTF("key_number:%d\n", temp_data[38]);
-                if (temp_data[38] != SIM_1KEY && temp_data[38] != SIM_3KEY && temp_data[38] != SIM_6KEY) {
-                    APP_PRINTF("key_number error!\n");
+
+                if (temp_data[37] != 0x00 && temp_data[37] != 0x14) { // 只收普通面板和常供电面板的配置信息
                     break;
                 }
-#elif defined HW_4KEY
-                if (temp_data[38] != SIM_1KEY && temp_data[38] != SIM_2KEY && temp_data[38] != SIM_4KEY) {
-                    APP_PRINTF("key_number error!\n");
-                    break;
-                }
-#endif
                 app_save_cfg(temp_data, reg_length); // Save cfg
-            } else {
+
+            } else { // 写 REG
                 uint8_t reg_length = 1;
                 app_save_reg(reg_addr, temp_data, 1); // Save reg
             }

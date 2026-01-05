@@ -50,21 +50,20 @@ void app_load_config(cfg_addr addr)
             if (read_data[0] == 0xFFFFFFFF) { // If the CFG is not configured,then the default CFG will be used
                 APP_PRINTF("cfg is null\n");
                 memcpy(new_data, DEF_PANEL_CONFIG, sizeof(DEF_PANEL_CONFIG));
-#if defined HW_6KEY
-                new_data[38]   = SIM_6KEY;
+
+                new_data[38]   = SIM_6KEY; // 默认使用6键
                 sim_key_number = SIM_6KEY;
-#elif defined HW_4KEY
-                new_data[38]   = SIM_4KEY;
-                sim_key_number = SIM_4KEY;
-#endif
+
             } else {
                 if (app_uint32_to_uint8(read_data, sizeof(read_data) / sizeof(read_data[0]), new_data, sizeof(new_data)) != true) {
                     APP_ERROR("app_uint32_to_uint8 error\n");
                 }
             }
-#if defined PANEL_6KEY_A11 || defined PANEL_4KEY_A11
+
+#if defined PANEL
             app_load_panel_a11(new_data, sizeof(new_data) / sizeof(new_data[0]));
 #endif
+
         } break;
         case REG: { // Read the REG
             __disable_irq();
@@ -133,10 +132,9 @@ void app_load_config(cfg_addr addr)
     }
 }
 
-#if defined PANEL_6KEY_A11 || defined PANEL_4KEY_A11
+#if defined PANEL
 static void app_load_panel_a11(uint8_t *data, uint8_t length)
 {
-
     gpio_pin_t RELAY_GPIO_MAP[CONFIG_NUMBER] = RELAY_GPIO_MAP_DEF;
     gpio_pin_t LED_W_GPIO_MAP[CONFIG_NUMBER] = LED_W_GPIO_MAP_DEF;
     for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
@@ -167,7 +165,7 @@ static void app_load_panel_a11(uint8_t *data, uint8_t length)
     panel_type     = data[length - 3];
     app_panel_get_relay_num(data, RELAY_GPIO_MAP);
 #if 1
-    for (uint8_t i = 0; i < KEY_NUMBER; i++) {
+    for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
         panel_cfg_t *const p_cfg = &my_panel_cfg[i];
         APP_PRINTF("%02X %02X %02X %02X %02X |", p_cfg->func, p_cfg->group, p_cfg->area, p_cfg->perm, p_cfg->scene_group);
         for (uint8_t j = 0; j < 4; j++) {

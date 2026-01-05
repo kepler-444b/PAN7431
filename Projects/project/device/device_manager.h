@@ -5,25 +5,14 @@
 #include "repeater.h"
 #include "light_driver_ct.h"
 
-// #define SETTER // 设置器
+// #define SETTER          // 设置器
 #define PANEL // 灯控面板
-// #define REPEATER // 转发器
+// #define REPEATER        // 转发器
 // #define LIGHT_DRIVER_CT // 色温灯驱
 
 #if defined PANEL
 #define RELAY_NUMBER  4
-#define CONFIG_NUMBER 6
-
-// #define PANEL_6KEY_A11
-#define PANEL_4KEY_A11
-
-#if defined PANEL_6KEY_A11
-#define HW_6KEY
-#define KEY_NUMBER 6
-#elif defined PANEL_4KEY_A11
-#define HW_4KEY
-#define KEY_NUMBER 4
-#endif
+#define CONFIG_NUMBER 6 // 配置信息个数
 
 #endif
 
