@@ -34,9 +34,13 @@ void app_eventbus_subscribe(EventHandler handler)
 // 发布事件(带参数)
 void app_eventbus_publish(event_type_e event, void *params)
 {
-    if (event >= EVENT_COUNT) return;
-    if (queueSize >= EVENT_QUEUE_SIZE) return; // 队列满
+    if (event >= EVENT_COUNT)
+        return;
 
+    if (queueSize >= EVENT_QUEUE_SIZE) {
+        APP_ERROR("queue full");
+        return; // 队列满
+    }
     eventQueue[queueHead] = (event_t){event, params};
     queueHead             = (queueHead + 1) % EVENT_QUEUE_SIZE;
     queueSize++;

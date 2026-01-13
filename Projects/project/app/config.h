@@ -53,6 +53,20 @@ typedef struct
     gpio_pin_t relay_pin[4]; // 按键所控继电器
 } panel_cfg_t;
 
+typedef struct
+{
+    uint8_t func;        // 按键功能
+    uint8_t group;       // 双控分组
+    uint8_t area;        // 按键区域(高4位:总开关分区,低4位:场景分区)
+    uint8_t perm;        // 按键权限
+    uint8_t scene_group; // 场景分组
+
+    // uint8_t led_channel;  // led 路数
+    uint8_t led_lum;      // 本路调光
+    uint8_t scene_lum[8]; // 场景对应亮度
+
+} light_cfg_t;
+
 typedef struct {
     uint8_t ver;        // 0:  程序版本
     uint8_t cpadd_h;    // 1:  产品地址高位
@@ -81,9 +95,11 @@ static uint8_t my_uid[12] = {0};
 void app_load_config(cfg_addr addr);
 
 const panel_cfg_t *app_get_panel_cfg(void);
+const light_cfg_t *app_get_light_cfg(void);
+
 const uint8_t app_get_panel_type(void);
 const uint8_t *app_get_cfg(void);
 
 reg_t *app_get_reg(void);
-uint8_t app_get_sim_key_number(void);
+const uint8_t app_get_sim_key_number(void);
 #endif

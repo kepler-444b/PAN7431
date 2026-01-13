@@ -8,21 +8,30 @@
 #include "../app/protocol.h"
 #include "../app/eventbus.h"
 
-#if defined PANEL
-static panel_cfg_t my_panel_cfg[6] = {0};
-static uint8_t panel_type; // 0x00 普通面板 0x14 长供电面板
-
-#endif
 static reg_t my_reg = {0};
 static uint8_t sim_key_number; // 软件模拟按键数量
 
 // The default CFG of panel
-static uint8_t DEF_PANEL_CONFIG[40] = {0xF2, 0x0E, 0x0E, 0x0E, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x21, 0x21, 0x21, 0x00, 0x00, 0x00,
-                                       0x00, 0x0E, 0x00, 0x00, 0x44, 0x00, 0x21, 0x00, 0x0E, 0x00, 0x00, 0x21, 0x00, 0xB0, 0x21, 0x84, 0x00, 0x00, 0x00, 0x00};
+#if defined PANEL
+static uint8_t DEF_DEFAULT_CONFIG[40] = {0xF2, 0x0E, 0x0E, 0x0E, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x21, 0x21, 0x21, 0x00, 0x00, 0x00,
+                                         0x00, 0x0E, 0x00, 0x00, 0x44, 0x00, 0x21, 0x00, 0x0E, 0x00, 0x00, 0x21, 0x00, 0xB0, 0x21, 0x84, 0x00, 0x00, 0x00, 0x00};
 
+static panel_cfg_t my_panel_cfg[CONFIG_NUMBER] = {0};
+static uint8_t panel_type; // 0x00 普通面板 0x14 长供电面板
+
+#elif defined LIGHT_DRIVER_CT
+static uint8_t DEF_DEFAULT_CONFIG[40] = {0xE2, 0x21, 0x0E, 0x00, 0x21, 0x00, 0x00, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3F,
+                                         0xE2, 0x22, 0x0E, 0x00, 0x21, 0x00, 0x00, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3F};
+
+static light_cfg_t my_light_cfg_t[LED_CHANNEL] = {0};
+#endif
+
+// 函数声明
 #if defined PANEL
 static void app_load_panel_a11(uint8_t *data, uint8_t length);
 static void app_panel_get_relay_num(uint8_t *data, const gpio_pin_t *relay_map);
+#elif defined LIGHT_DRIVER_CT
+static void app_load_light_ct(uint8_t *data, uint8_t length);
 #endif
 
 static uint32_t read_data[10] = {0};
@@ -50,7 +59,7 @@ void app_load_config(cfg_addr addr)
             __enable_irq();
             if (read_data[0] == 0xFFFFFFFF) { // If the CFG is not configured,then the default CFG will be used
                 APP_PRINTF("cfg is null\n");
-                memcpy(new_data, DEF_PANEL_CONFIG, sizeof(DEF_PANEL_CONFIG));
+                memcpy(new_data, DEF_DEFAULT_CONFIG, sizeof(DEF_DEFAULT_CONFIG));
 
                 new_data[38]   = SIM_6KEY; // 默认使用6键
                 sim_key_number = SIM_6KEY;
@@ -63,6 +72,8 @@ void app_load_config(cfg_addr addr)
 
 #if defined PANEL
             app_load_panel_a11(new_data, sizeof(new_data) / sizeof(new_data[0]));
+#elif defined LIGHT_DRIVER_CT
+            app_load_light_ct(new_data, sizeof(new_data) / sizeof(new_data[0]));
 #endif
 
         } break;
@@ -76,10 +87,10 @@ void app_load_config(cfg_addr addr)
                 APP_PRINTF("reg is null\n");
                 memset(new_data, 0, sizeof(new_data));
                 // default reg
-                new_data[0] = 0x01; // channel
+                new_data[0] = 0x2B; // channel
                 new_data[1] = 0x02; // zuwflag
-                new_data[2] = 0x03; // room_h
-                new_data[3] = 0x04; // room_l
+                new_data[2] = 0x02; // room_h
+                new_data[3] = 0x02; // room_l
                 new_data[4] = 0x05; // forward_en
 #if defined PANEL
                 new_data[5] = sim_key_number; // key_number
@@ -182,6 +193,33 @@ static void app_load_panel_a11(uint8_t *data, uint8_t length)
 }
 #endif
 
+#if defined LIGHT_DRIVER_CT
+static void app_load_light_ct(uint8_t *data, uint8_t length)
+{
+    for (uint8_t i = 0; i < 2; i++) {
+
+        my_light_cfg_t[i].func        = data[2 + i * 17];
+        my_light_cfg_t[i].group       = data[3 + i * 17];
+        my_light_cfg_t[i].perm        = data[4 + i * 17];
+        my_light_cfg_t[i].area        = data[5 + i * 17];
+        my_light_cfg_t[i].scene_group = data[6 + i * 17];
+        my_light_cfg_t[i].led_lum     = data[7 + i * 17];
+        memcpy(my_light_cfg_t[i].scene_lum, &data[8 + i * 17], sizeof(my_light_cfg_t[i].scene_lum));
+    }
+
+#if 1
+    for (uint8_t i = 0; i < LED_CHANNEL; i++) {
+        light_cfg_t *const p_cfg = &my_light_cfg_t[i];
+        APP_PRINTF("%02X %02X %02X %02X %02X |", p_cfg->func, p_cfg->group, p_cfg->area, p_cfg->perm, p_cfg->scene_group);
+        APP_PRINTF_BUF("scene_lum", p_cfg->scene_lum, sizeof(p_cfg->scene_lum));
+        APP_PRINTF("\n");
+    }
+    APP_PRINTF("sim_key_number:%02X\n", sim_key_number);
+    APP_PRINTF("\n");
+#endif
+}
+#endif
+
 // Bind the relay's pins to key
 #if defined PANEL
 static void app_panel_get_relay_num(uint8_t *data, const gpio_pin_t *relay_map)
@@ -225,11 +263,20 @@ const uint8_t app_get_panel_type(void)
 
 #endif
 
+#if defined LIGHT_DRIVER_CT
+
+const light_cfg_t *app_get_light_cfg(void)
+{
+    return my_light_cfg_t;
+}
+
+#endif
+
 reg_t *app_get_reg(void)
 {
     return &my_reg;
 }
-uint8_t app_get_sim_key_number(void)
+const uint8_t app_get_sim_key_number(void)
 {
     return sim_key_number;
 }

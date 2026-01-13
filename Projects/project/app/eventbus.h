@@ -7,11 +7,12 @@ typedef enum {
     EVENT_RF_RX,    // rf 接收
     EVENT_PANEL_RX, // 面板接收有效帧
     EVENT_PANEL_RX_MY,
-    EVENT_SIMULATE_KEY, // 模拟按键
+    EVENT_SIMULATE_CTRL, // 模拟按键
 
     EVENT_REQUEST_NETWORK, // 申请组网
     EVENT_UART1_RX,        // UART1接收
-    EVENT_LED_BLINK,
+    EVENT_LED_BLINK,       // LED闪烁
+    EVENT_LED_TRIGGER,     // LED切换
     EVENT_LIGHT_RX,
 
     // 添加更多事件类型...

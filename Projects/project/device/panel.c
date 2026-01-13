@@ -4,7 +4,7 @@
 #include "../app/config.h"
 #include "../app/eventbus.h"
 #include "../app/protocol.h"
-#include "../app/pwm.h"
+#include "../app/pwm_hw.h"
 #include "../bsp/bsp_timer.h"
 #include "../bsp/bsp_tm5020a.h"
 #include "../bsp/bsp_uart.h"
@@ -33,7 +33,7 @@
 
 #define FUNC_ARGS   data, temp_cfg, temp_status, data_src
 
-#define FUNC_PARAMS panel_frame_t *data,         \
+#define FUNC_PARAMS frame_t *data,               \
                     const panel_cfg_t *temp_cfg, \
                     panel_status_t *temp_status, \
                     data_source_e data_src
@@ -175,9 +175,10 @@ static void panel_insert_card(void);
 static void panel_remove_card(void);
 static void panel_bl_close(void);
 static void panel_exe_led_status(led_statue_e type);
-static void panel_data_cb(panel_frame_t *data, data_source_e data_src);
+static void panel_data_cb(frame_t *data, data_source_e data_src);
 static void set_panel_status(uint8_t idx, uint8_t flag, panel_action_e action);
 static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t main_key, uint8_t slave_key, bool is_toggle);
+static bool panel_find_sim_key(frame_t *data);
 static void process_panel_adc(ADC_PARAMS);
 static void process_exe_status(TIMER_PARAMS);
 static void process_cmd_check(FUNC_PARAMS);
@@ -207,13 +208,13 @@ void panel_device_init(void)
     bsp_start_timer(2, 5, panel_read_adc, NULL, TMR_AUTO_MODE);
     bsp_start_timer(3, 1, panel_proce_cmd, NULL, TMR_AUTO_MODE);
     app_eventbus_subscribe(panel_event_handler);
-    app_pwm_init();
+    pwm_hw_init();
 
 #if defined ZERO_ENABLE
     bsp_zero_init();
 #endif
-    app_pwm_add_pin(PA8);
-    app_set_pwm_fade(PA8, 1000, 1000);
+    app_pwm_hw_add_pin(PWM_PA8);
+    app_set_pwm_hw_fade(PWM_PA8, 2400, 1000);
 
     if (DEVICE_PANEL == app_get_panel_type()) { // 只有受控电面板上电执行"迎宾"
         panel_power_status();
@@ -268,7 +269,7 @@ static void process_panel_adc(ADC_PARAMS)
                 // 在"总关"状态下且不是特殊按键,则不反转状态
                 is_toggle = false;
             }
-            uint8_t sim_key_number = app_get_sim_key_number();
+            const uint8_t sim_key_number = app_get_sim_key_number();
 
             switch (sim_key_number) {
                 case SIM_1KEY: {
@@ -414,8 +415,8 @@ static void process_exe_status(TIMER_PARAMS)
 
     if (temp_common->check_w_led) { // 检查白灯个数
         if (++temp_common->check_w_led_count >= 1000) {
-            bool has_w_led_on   = false;
-            uint8_t sim_key_num = app_get_sim_key_number();
+            bool has_w_led_on         = false;
+            const uint8_t sim_key_num = app_get_sim_key_number();
             for (uint8_t i = 0; i < sim_key_num; i++) {
                 if (temp_status[i].w_cur) {
                     has_w_led_on = true;
@@ -425,6 +426,8 @@ static void process_exe_status(TIMER_PARAMS)
             if (!has_w_led_on) {
                 if (!my_common_panel.all_close) {
                     panel_backlight_status(BACKLIGHT_DIM);
+                } else if (my_common_panel.all_close) {
+                    panel_backlight_status(BACKLIGHT_OFF);
                 }
             }
             temp_common->check_w_led       = false;
@@ -522,22 +525,22 @@ static void panel_backlight_status(backlight_mode_e mode)
     switch (mode) {
         case BACKLIGHT_DIM: {
             APP_PRINTF("BACKLIGHT_DIM\n");
-            app_set_pwm_fade(PA8, 100, 3000);
+            app_set_pwm_hw_fade(PWM_PA8, 500, 3000);
         } break;
         case BACKLIGHT_ON:
             APP_PRINTF("BACKLIGHT_ON\n");
-            app_set_pwm_fade(PA8, 1000, 1000);
+            app_set_pwm_hw_fade(PWM_PA8, 2400, 3000);
             break;
         case BACKLIGHT_OFF:
             APP_PRINTF("BACKLIGHT_OFF\n");
-            app_set_pwm_fade(PA8, 0, 3000);
+            app_set_pwm_hw_fade(PWM_PA8, 0, 3000);
             break;
         default:
             return;
     }
 }
 
-static void panel_data_cb(panel_frame_t *data, data_source_e data_src)
+static void panel_data_cb(frame_t *data, data_source_e data_src)
 {
     // If this device is always-powered (DEVICE_PANEL_AP), and a card command is received
     if (data->data[0] == CARD_HEAD && data->data[1] == CARD_CMD) {
@@ -576,18 +579,47 @@ static void panel_data_cb(panel_frame_t *data, data_source_e data_src)
     }
 }
 
+// 查找本面板中是否有相同的按键
+static bool panel_find_sim_key(frame_t *data)
+{
+    bool ret = false;
+
+    const panel_cfg_t *temp_cfg  = app_get_panel_cfg();
+    const uint8_t sim_key_number = app_get_sim_key_number();
+    for (uint8_t i = 0; i < sim_key_number; i++) {
+
+        bool special     = (BIT2(temp_cfg[i].perm) && !BIT4(temp_cfg[i].perm));
+        bool group_match = (data->data[3] == temp_cfg[i].group);
+        if (!special) { // 如果不是特殊按键,跳过
+            continue;
+        }
+        if (!group_match) { // 不是同一分组跳过;
+            continue;
+        }
+        if ((data->data[1] == CURTAIN_STOP) && (temp_cfg[i].func == CURTAIN_OPEN || temp_cfg[i].func == CURTAIN_CLOSE)) {
+            ret = true;
+        }
+        if (data->data[1] == temp_cfg[i].func) {
+            ret = true;
+        }
+    }
+    return ret;
+}
+
 static void process_cmd_check(FUNC_PARAMS)
 {
     bool skip_outer = false;
     if (my_common_panel.all_close == true) { // 当前是总关模式
 
         // 如果是勾选了"备用"且没有勾选"只开",这种按键为特殊按键(立即执行动作,而不唤醒任何面板)
-        bool special_key = (BIT2(data->data[6]) && !BIT4(data->data[6]));
-        if (data_src == OTHER && special_key) {
+        bool src_special_key = (BIT2(data->data[6]) && !BIT4(data->data[6]));
+        bool my_special_key  = panel_find_sim_key(data);
+
+        if (src_special_key && !my_special_key) { // 其他面板的特殊按键,且自身没有相同的按键
             return;
         }
-        // 来自本设备勾选"备用"的按键
-        if (data_src == THIS && special_key) {
+
+        if (src_special_key && my_special_key) { // 自身触发的特殊按键,或其他面板的特殊按键但与自身双控
             if (!my_common_panel.bl_status) {
                 panel_exe_led_status(LOAD);
             }
@@ -706,15 +738,15 @@ static void panel_event_handler(event_type_e event, void *params)
 {
     switch (event) {
         case EVENT_PANEL_RX: {
-            panel_frame_t *my_panel_frame = (panel_frame_t *)params;
+            frame_t *my_panel_frame = (frame_t *)params;
             panel_data_cb(my_panel_frame, OTHER);
         } break;
         case EVENT_PANEL_RX_MY: {
-            panel_frame_t *my_panel_frame = (panel_frame_t *)params;
+            frame_t *my_panel_frame = (frame_t *)params;
             panel_data_cb(my_panel_frame, THIS);
         } break;
-        case EVENT_SIMULATE_KEY: {
-            panel_frame_t *my_panel_frame = (panel_frame_t *)params;
+        case EVENT_SIMULATE_CTRL: {
+            frame_t *my_panel_frame = (frame_t *)params;
             process_panel_simulate(my_panel_frame->data[0] - 1, my_panel_frame->data[1]);
         } break;
         case EVENT_LED_BLINK: {
@@ -797,7 +829,7 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
     // BIT2:r_short
     // BIT1:reserve
     // BIT0:reserve
-    uint8_t sim_key_number = app_get_sim_key_number();
+    const uint8_t sim_key_number = app_get_sim_key_number();
     switch (sim_key_number) {
         case SIM_1KEY: {
             if (idx == 0) {
@@ -982,7 +1014,7 @@ static void panel_all_on_off(FUNC_PARAMS) // all_on_off
         switch (p_cfg->func) {
             case ALL_ON_OFF:
                 if (data->data[3] == p_cfg->group) {
-                    if (BIT4(p_cfg->perm) && BIT6(p_cfg->perm)) { // If both "Only On" and "Toggle" are selected
+                    if (BIT4(p_cfg->perm) && BIT6(p_cfg->perm)) { // 如果勾选了"只开"和"取反"
                         panel_fast_exe(WS_R | 0x00, _i);
                     } else if (BIT4(p_cfg->perm)) { // If "only_on" is selected
                         panel_fast_exe(W_R | 0x01, _i);
@@ -1000,7 +1032,7 @@ static void panel_all_on_off(FUNC_PARAMS) // all_on_off
             case SCENE_MODE:
             case CLEAN_ROOM:
             case NIGHT_LIGHT:
-                if (BIT7(p_cfg->perm) && !data->data[2]) { // If "not_on" is selected, controlled only by "all_on_off" off
+                if (BIT7(p_cfg->perm) && !data->data[2]) { // 如果勾选了"不总开",则不受"总开关"的"总开"控制
                     panel_fast_exe(W_R | 0x00, _i);
                 } else if (!BIT7(p_cfg->perm)) { // If "not_on" is unmatched
                     panel_fast_exe(W_R | (data->data[2] & 0x01), _i);

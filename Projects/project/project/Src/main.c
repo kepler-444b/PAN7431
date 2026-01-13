@@ -32,13 +32,14 @@ int main(void)
     PAN211_ClearIRQFlags(0xFF);
     bsp_uart_init();
 
-#if defined PANEL
+#if defined PANEL || defined CONFIG_NUMBER
     app_load_config(CFG);
 #endif
     app_load_config(REG);
     bsp_timer_init();
     app_iwdg_init();
     app_eventbus_init();
+
     app_protocol_init();
     app_jump_device();
     PAN211_RxStart();
@@ -47,6 +48,7 @@ int main(void)
     while (1) {
         bsp_timer_poll();
         app_eventbus_poll();
+
 #if defined SETTER
         if (!rssi_is_enabled()) {
 #endif

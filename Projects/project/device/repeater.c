@@ -40,7 +40,7 @@ static void app_check_key(void *arg)
 static void repeater_event_handler(event_type_e event, void *params)
 {
     switch (event) {
-        case EVENT_LED_BLINK: {
+        case EVENT_LED_TRIGGER: {
             led2_status = !led2_status;
             APP_SET_GPIO(PB0, led2_status);
         } break;

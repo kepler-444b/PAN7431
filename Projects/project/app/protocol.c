@@ -29,6 +29,7 @@ void app_protocol_init(void)
     app_usart2_rx_callback(app_usart2_rx);
 #endif
     app_eventbus_subscribe(protocol_event_handler);
+    APP_PRINTF("app_protocol_init\n");
 }
 
 static void protocol_event_handler(event_type_e event, void *params)
@@ -76,7 +77,7 @@ void app_usart2_rx(usart2_rx_buf_t *buf)
 void app_rf_rx_check(rf_frame_t *buf)
 {
     reg_t *reg = app_get_reg();
-    APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
+    // APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
     uint16_t tag_device_addr = MAKE_U16(buf->rf_data[2], buf->rf_data[3]);
     uint16_t src_room_addr   = MAKE_U16(buf->rf_data[8], buf->rf_data[9]);
 
@@ -124,28 +125,46 @@ void app_rf_rx_check(rf_frame_t *buf)
                 app_rf_tx(&rf_rx, true);
 
             } else if (read_addr == 20 && read_length == 40) {
+#if defined PANEL
                 APP_PRINTF("read_cfg\n");
                 rf_rx.rf_data[10] = read_length;
 
                 memcpy(&rf_rx.rf_data[11], app_get_cfg(), 40);
                 rf_rx.rf_len = RF_PAYLOAD;
                 app_rf_tx(&rf_rx, true);
+#endif
             }
 
         } break;
         case WReg: {
             uint8_t reg_addr   = buf->rf_data[7]; // The starting address of the register
             uint8_t *temp_data = &buf->rf_data[11];
+
             if (buf->rf_data[7] == 20) { // 写 CFG
 
                 uint8_t reg_length = buf->rf_data[10]; // Data write length
-
+#if defined PANEL
                 if (temp_data[37] != 0x00 && temp_data[37] != 0x14) { // 只收普通面板和常供电面板的配置信息
-                    break;
+                    return;
                 }
+#elif defined LIGHT_DRIVER_CT
+                if (temp_data[0] != 0xE2) {
+                    return;
+                }
+#endif
                 app_save_cfg(temp_data, reg_length); // Save cfg
 
-            } else { // 写 REG
+            } else if (buf->rf_data[7] == 4) { // 改变房间号和信道号(和组网流程类似)
+
+                app_save_reg(4, &buf->rf_data[11], 5);
+                app_creat_frame(&rf_rx, SBAnswer, reg); // Return ACK
+                rf_rx.rf_data[10] = 0x14;
+                memcpy(&rf_rx.rf_data[11], &reg->ver, 20);
+                rf_rx.rf_len = RF_PAYLOAD;
+                app_rf_tx(&rf_rx, true);
+                bsp_start_timer(1, 1000, delay_switch_channel, NULL, TMR_ONCE_MODE);
+
+            } else { // 写单个 REG
                 uint8_t reg_length = 1;
                 app_save_reg(reg_addr, temp_data, 1); // Save reg
             }
@@ -182,31 +201,31 @@ void app_rf_rx_check(rf_frame_t *buf)
                 bsp_start_timer(10, 2000, delay_clear_last_data, NULL, TMR_ONCE_MODE);
 #if defined PANEL
                 // Execute local panel action
-                static panel_frame_t temp_panel_frame;
+                static frame_t temp_panel_frame;
                 memcpy(temp_panel_frame.data, data_p, data_len);
                 temp_panel_frame.length = data_len;
                 app_eventbus_publish(EVENT_PANEL_RX, &temp_panel_frame);
 
 #elif defined REPEATER
                 // DelayMs(1);
-                app_eventbus_publish(EVENT_LED_BLINK, NULL);
+                app_eventbus_publish(EVENT_LED_TRIGGER, NULL);
                 bsp_rs485_send_buf(rf_rx.rf_data, rf_rx.rf_len);
 #elif defined LIGHT_DRIVER_CT
-                static panel_frame_t temp_panel_frame;
+                static frame_t temp_panel_frame;
                 memcpy(temp_panel_frame.data, data_p, data_len);
                 temp_panel_frame.length = data_len;
-                app_eventbus_publish(EVENT_LED_BLINK, NULL);
+                app_eventbus_publish(EVENT_LED_TRIGGER, NULL);
                 app_eventbus_publish(EVENT_LIGHT_RX, &temp_panel_frame);
 #endif
             }
         } break;
         case SBkz: {
-            static panel_frame_t temp_panel_frame;
+            static frame_t temp_panel_frame;
             uint8_t *panel_data_p     = &buf->rf_data[12];
             uint8_t panel_data_length = 2;
             memcpy(temp_panel_frame.data, panel_data_p, panel_data_length);
             temp_panel_frame.length = panel_data_length;
-            app_eventbus_publish(EVENT_SIMULATE_KEY, &temp_panel_frame);
+            app_eventbus_publish(EVENT_SIMULATE_CTRL, &temp_panel_frame);
         } break;
         case RssiTest: {
             // Retuen AckRssi
@@ -251,6 +270,8 @@ void app_rf_rx_check(rf_frame_t *buf)
 
             uint8_t palyload[32] = {0};
             memcpy(palyload, &reg->ver, 20); // 20 字节的reg
+
+#if defined PANEL
             const panel_cfg_t *temp_cfg = app_get_panel_cfg();
 
             for (uint8_t i = 0; i < CONFIG_NUMBER; i++) { // 12字节的按键功能及分组
@@ -261,6 +282,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                     palyload[i + 26] = temp_cfg[i].scene_group;
                 }
             }
+#endif
             memcpy(&rf_rx.rf_data[11], palyload, sizeof(palyload)); // 拷贝到发送数据
             rf_rx.rf_len = RF_PAYLOAD;
             APP_PRINTF_BUF("rf_rx", rf_rx.rf_data, rf_rx.rf_len);
@@ -317,7 +339,7 @@ void app_rf_tx(rf_frame_t *rf_tx, bool repeat)
 // 构造按键数据帧
 void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, uint8_t cmd_type)
 {
-    static panel_frame_t send_frame;
+    static frame_t send_frame;
     memset(&send_frame, 0, sizeof(send_frame));
     const panel_cfg_t *temp_cfg = app_get_panel_cfg();
 

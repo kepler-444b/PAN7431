@@ -1,3 +1,5 @@
+
+#if 0
 #include "py32f0xx.h"
 #include "py32f0xx_hal_tim.h"
 #include "pwm.h"
@@ -6,15 +8,15 @@
 #include "../bsp/bsp_timer.h"
 #include "../device/device_manager.h"
 
-#define SYSTEM_CLOCK_FREQ 48000000 // 系统时钟频率(48MHz)
-#define TIMER_PERIOD      24       // 25 us 触发一次中断
-#define PWM_RESOLUTION    1000     // PWM分辨率(1000)
-#define MAX_FADE_TIME_MS  5000     // 最大渐变时间(5秒)
-#define FADE_UPDATE_MS    1        // 渐变更新间隔(10ms)
-#define PWM_MIN_DUTY      50       // 最低占空比
+#define SYSTEM_CLOCK_FREQ  48000000 // 系统时钟频率(48MHz)
+#define TIMER_PERIOD       24       // 25 us 触发一次中断
+#define PWM_RESOLUTION     1000     // PWM分辨率(1000)
+#define MAX_FADE_TIME_MS   5000     // 最大渐变时间(5秒)
+#define FADE_UPDATE_MS     1        // 渐变更新间隔(10ms)
+#define PWM_MIN_DUTY       50       // 最低占空比
 
 // 定义 MIN 宏(取较小值)
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MIN(a, b)          ((a) < (b) ? (a) : (b))
 
 // 定义 CLAMP 宏(限制值在 [min_val, max_val] 范围内)
 #define CLAMP(x, min, max) ((x) <= (min) ? (min) : ((x) >= (max) ? (max) : (x)))
@@ -213,3 +215,4 @@ void TIM3_IRQHandler(void)
         );
     }
 }
+#endif

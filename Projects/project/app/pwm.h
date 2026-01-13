@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "gpio.h"
 
+#if 0
 #define PWM_MAX_CHANNELS 8
 
 void app_pwm_init(void);
@@ -17,4 +18,5 @@ uint16_t app_get_pwm_duty(gpio_pin_t pin);
 
 bool app_is_pwm_fading(gpio_pin_t pin);
 
+#endif
 #endif
