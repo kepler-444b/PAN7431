@@ -20,6 +20,7 @@ uint8_t bsp_flash_erase(uint32_t start_addr, uint32_t size)
 
 uint8_t bsp_flash_write(uint32_t start_addr, uint32_t *src_data, uint32_t size)
 {
+    uint8_t status = FLASH_IF_OK;
     HAL_FLASH_Unlock();
     if (bsp_flash_erase(start_addr, size) != FLASH_IF_OK) {
         return FLASH_IF_ERROR;
@@ -31,13 +32,15 @@ uint8_t bsp_flash_write(uint32_t start_addr, uint32_t *src_data, uint32_t size)
 
     while (flash_program_start < flash_program_end) {
         if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_PAGE, flash_program_start, src) != HAL_OK) {
-            return FLASH_IF_ERROR;
+            goto exit;
         }
         flash_program_start += FLASH_PAGE_SIZE;
         src += FLASH_PAGE_SIZE / 4;
     }
+    
+exit:
     HAL_FLASH_Lock();
-    return FLASH_IF_OK;
+    return status;
 }
 
 uint8_t bsp_flash_read(uint32_t start_addr, uint32_t *dest_data, uint32_t size)

@@ -24,7 +24,7 @@ int main(void)
     // Reset of all peripherals, Initializes the Systick
     HAL_Init();
     APP_SystemClockConfig();
-    HAL_Delay(100);
+    HAL_Delay(1000);
 
     PAN211_Init();
     PAN211_SetRxAddr(DEFAULT_ADDR, 5);
@@ -41,9 +41,9 @@ int main(void)
     app_eventbus_init();
 
     app_protocol_init();
-    app_jump_device();
     PAN211_RxStart();
     PAN211_SetChannel(app_get_reg()->channel);
+    app_jump_device();
 
     while (1) {
         bsp_timer_poll();

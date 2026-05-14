@@ -89,14 +89,18 @@ typedef enum {
     NEXT_SONG     = 0x66, // 下一首
     LAST_SONG     = 0x67, // 上一首
     CARD_CMD      = 0x01, // 插拔卡指令
+    DOOR_SENSOR   = 0x00, // 门磁指令
     REMOVE_CARD   = 0x00, // 拔卡
     INSERT_CARD   = 0x01, // 插卡
 } frame_type_e;
 
 typedef enum {
-    DEVICE_PANEL    = 0x00, // panel
-    DEVICE_PANEL_AP = 0x14, // panel always-powered
-    DEVICE_REPEATER = 0x0d, // repeater
+    DEVICE_PANEL          = 0x00, // 普通面板
+    DEVICE_PANEL_AP       = 0x14, // 常供电面板
+    DEVICE_REPEATER       = 0x0d, // 转发器
+    DEVICE_LIGHT_DRIVE    = 0x17, // 普通灯驱
+    DEVICE_LIGHT_DRIVE_AP = 0x18, // 常供电灯驱
+
 } device_type_e;
 
 typedef struct
@@ -108,4 +112,12 @@ void app_protocol_init(void);
 void app_rf_tx(rf_frame_t *rf_tx, bool repeat);
 void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, uint8_t cmd_type);
 
+/* 
+
+todo
+
+2026.5.14
+1.修复问题:如果上位机发送配置串码,数据长度不对,即不是39个字节,则直接return不再处理
+
+*/
 #endif

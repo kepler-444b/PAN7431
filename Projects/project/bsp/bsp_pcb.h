@@ -11,13 +11,25 @@
     [4] = {.vol_range = {170, 180}}, \
     [5] = {.vol_range = {195, 205}}
 
-#define RELAY_GPIO_MAP_DEF {PB1, PA5, PA6, PB0}             // 继电器 GPIO 映射
-#define LED_W_GPIO_MAP_DEF {PA3, PA2, PB5, PB4, PA10, PA11} // white led
-#define LED_Y_GPIO_MAP_DEF PA8                              // yellow led
+#define RELAY_GPIO_MAP_DEF {PB1, PA5, PA6, PB0} // 继电器 GPIO 映射
+
+#if defined PANEL_A20
+#define LED_W_GPIO_MAP_DEF {PA2, PA3, PA7, PA12, PA15, PB2} // white led
+#define LED_Y_GPIO_MAP_DEF {PWM_PB3, PWM_PA8, PWM_PA10, PWM_PA11, PWM_PB4, PWM_PB5}
+#else
+#define LED_W_GPIO_MAP_DEF {PA3, PA2, PB5, PB4, PA10, PA11}                       // white led
+#define LED_Y_GPIO_MAP_DEF {PWM_PA8, PWM_PA8, PWM_PA8, PWM_PA8, PWM_PA8, PWM_PA8} // yellow led
+
+#endif
+
+#if defined LIGHT_DRIVER_CT
+#define LED_GPIO_MAP_DEF {PWM_PB3, PWM_PA8}
+#endif
 
 void bsp_panel_init(void);
 void bsp_setter_init(void);
 void bsp_repeater_init(void);
 void bsp_light_driver_ct_init(void);
+void bsp_light_driver_relay_init(void);
 
 #endif

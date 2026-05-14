@@ -20,7 +20,7 @@ typedef struct
 
 void bsp_timer_poll(void);
 void bsp_timer_init(void);
-void bsp_start_timer(uint8_t id, uint32_t period, void (*cb)(void *), void *arg, uint8_t auto_reload);
+void bsp_start_timer(uint8_t id, uint32_t period, void (*cb)(void *), void *arg, TMR_MODE_E auto_reload);
 void bsp_stop_timer(uint8_t _id);
 int32_t bsp_get_run_time(void);
 

@@ -3,4 +3,9 @@
 
 void light_driver_ct_init(void);
 
+/* typedef enum {
+    CLOSE,
+    SAVE,
+    LOAD,
+} channel_statue_e; */
 #endif

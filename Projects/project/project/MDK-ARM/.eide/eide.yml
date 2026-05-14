@@ -56,7 +56,6 @@ virtualFolder:
         - path: ../../app/base.h
         - path: ../../app/config.c
         - path: ../../app/config.h
-        - path: ../../app/curve_table.h
         - path: ../../app/eventbus.c
         - path: ../../app/eventbus.h
         - path: ../../app/gpio.c
@@ -69,7 +68,6 @@ virtualFolder:
         - path: ../../app/pwm.h
         - path: ../../app/pwm_hw.c
         - path: ../../app/pwm_hw.h
-        - path: ../../app/curve_table.c
       folders: []
     - name: Bsp
       files:
@@ -130,6 +128,8 @@ targets:
         - RTE/_PAN7431
       libList: []
     excludeList: []
+    settings:
+      debugger: cortex-debug
     toolchain: AC6
     toolchainConfigMap:
       AC6:

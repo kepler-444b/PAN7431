@@ -14,6 +14,7 @@ static void protocol_event_handler(event_type_e event, void *params);
 static void app_save_cfg(uint8_t *cfg_data, uint8_t length);
 static void app_save_reg(uint8_t reg_addr, uint8_t *reg_data, uint8_t length);
 static void app_creat_frame(rf_frame_t *frame, rf_frame_type type, const reg_t *reg);
+static void app_add_info(uint8_t *payload, uint8_t start);
 static void delay_send_find_ack(void *arg);
 static void delay_forward_data(void *arg);
 static void delay_switch_channel(void *arg);
@@ -104,8 +105,15 @@ void app_rf_rx_check(rf_frame_t *buf)
         case Request: {
             app_save_reg(4, &buf->rf_data[11], 5);
             app_creat_frame(&rf_rx, SBAnswer, reg); // Return ACK
-            rf_rx.rf_data[10] = 0x14;
-            memcpy(&rf_rx.rf_data[11], &reg->ver, 20);
+
+            rf_rx.rf_data[10]   = 32; // 32 个字节(20字节的reg + 12字节的 按键/灯光 信息)
+            uint8_t payload[32] = {0};
+            memcpy(payload, &reg->ver, 20); // 20 字节的reg
+            uint8_t start = 20;             // 从 payload[20] 开始
+
+            app_add_info(payload, start);
+
+            memcpy(&rf_rx.rf_data[11], payload, sizeof(payload)); // 拷贝到发送数据
             rf_rx.rf_len = RF_PAYLOAD;
             app_rf_tx(&rf_rx, true);
             app_eventbus_publish(EVENT_LED_BLINK, NULL);
@@ -140,23 +148,28 @@ void app_rf_rx_check(rf_frame_t *buf)
             uint8_t reg_addr   = buf->rf_data[7]; // The starting address of the register
             uint8_t *temp_data = &buf->rf_data[11];
 
-            if (buf->rf_data[7] == 20) { // 写 CFG
-
+            if (buf->rf_data[7] == 20) {               // 写 CFG
                 uint8_t reg_length = buf->rf_data[10]; // Data write length
+                APP_PRINTF_BUF("temp_data", temp_data, reg_length);
 #if defined PANEL
-                if (temp_data[37] != 0x00 && temp_data[37] != 0x14) { // 只收普通面板和常供电面板的配置信息
-                    return;
-                }
+                if (temp_data[37] != 0x00 && temp_data[37] != 0x14) return; // 只收普通面板和常供电面板的配置信息
+
+                if (reg_length != 39) return; // 配置信息长度不够,则退出
 #elif defined LIGHT_DRIVER_CT
                 if (temp_data[0] != 0xE2) {
                     return;
                 }
+                memmove(&temp_data[16], &temp_data[18], 44 - 18); // 两次移动,以去除2路led配置的校验码
+                memmove(&temp_data[34], &temp_data[36], 44 - 36);
+
+                reg_length = 44 - 4; // 更新总长度
 #endif
                 app_save_cfg(temp_data, reg_length); // Save cfg
 
             } else if (buf->rf_data[7] == 4) { // 改变房间号和信道号(和组网流程类似)
 
                 app_save_reg(4, &buf->rf_data[11], 5);
+
                 app_creat_frame(&rf_rx, SBAnswer, reg); // Return ACK
                 rf_rx.rf_data[10] = 0x14;
                 memcpy(&rf_rx.rf_data[11], &reg->ver, 20);
@@ -194,11 +207,12 @@ void app_rf_rx_check(rf_frame_t *buf)
 
                 memcpy(&rf_rx.rf_data[11], data_p, data_len);
                 rf_rx.rf_len = RF_PAYLOAD;
-                // Start delayed transmission
+                // 延时转发
                 bsp_start_timer(6, delay_forward, delay_forward_data, &rf_rx, TMR_ONCE_MODE);
-                // Update last data cache
+                // 更行历史缓冲区
                 memcpy(last_data, data_p, data_len);
                 bsp_start_timer(10, 2000, delay_clear_last_data, NULL, TMR_ONCE_MODE);
+
 #if defined PANEL
                 // Execute local panel action
                 static frame_t temp_panel_frame;
@@ -268,22 +282,13 @@ void app_rf_rx_check(rf_frame_t *buf)
             app_creat_frame(&rf_rx, SBAnswer, reg);
             rf_rx.rf_data[10] = 32; // 32 个字节(20字节的reg + 12字节的按键功能)
 
-            uint8_t palyload[32] = {0};
-            memcpy(palyload, &reg->ver, 20); // 20 字节的reg
+            uint8_t payload[32] = {0};
+            memcpy(payload, &reg->ver, 20); // 20 字节的reg
+            uint8_t start = 20;             // 从 payload[20] 开始
 
-#if defined PANEL
-            const panel_cfg_t *temp_cfg = app_get_panel_cfg();
+            app_add_info(payload, start);
 
-            for (uint8_t i = 0; i < CONFIG_NUMBER; i++) { // 12字节的按键功能及分组
-                palyload[i + 20] = temp_cfg[i].func;
-                if (temp_cfg[i].func == SCENE_MODE) {
-                    palyload[i + 26] = temp_cfg[i].area;
-                } else {
-                    palyload[i + 26] = temp_cfg[i].scene_group;
-                }
-            }
-#endif
-            memcpy(&rf_rx.rf_data[11], palyload, sizeof(palyload)); // 拷贝到发送数据
+            memcpy(&rf_rx.rf_data[11], payload, sizeof(payload)); // 拷贝到发送数据
             rf_rx.rf_len = RF_PAYLOAD;
             APP_PRINTF_BUF("rf_rx", rf_rx.rf_data, rf_rx.rf_len);
             uint32_t delay_ms = (uint32_t)(reg->zuwflag * 50 + BASE_DELAY);
@@ -344,41 +349,39 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     const panel_cfg_t *temp_cfg = app_get_panel_cfg();
 
     send_frame.data[0] = PANEL_HEAD;
-    if (cmd_type == SPECIAL_CMD) { // special cmd
+    if (cmd_type == SPECIAL_CMD) { // 特殊命令
         if (temp_cfg[key_number].func == CURTAIN_OPEN || temp_cfg[key_number].func == CURTAIN_CLOSE) {
             // 若是窗帘正在"开/关"过程中,则"停止"
             send_frame.data[1] = CURTAIN_STOP;
             send_frame.data[2] = false;
         }
     }
-#if 0
-    else if (cmd_type == COMMON_CMD || (cmd_type == SPECIAL_CMD && temp_cfg[key_number].func == LATER_MODE)) {
-        // 普通命令 或 特殊命令里的"请稍后"
+
+    else if (cmd_type == COMMON_CMD) { // 普通命令
         send_frame.data[1] = temp_cfg[key_number].func;
         send_frame.data[2] = key_status;
-        if (BIT4(temp_cfg[key_number].perm) && BIT6(temp_cfg[key_number].perm)) { // "只开" + "取反"
-            send_frame.data[2] = false;
-        } else if (BIT4(temp_cfg[key_number].perm)) { // "只开"
-            send_frame.data[2] = true;
-        } else if (BIT6(temp_cfg[key_number].perm)) { // "取反"
-            send_frame.data[2] = !key_status;
-        } else {
-            send_frame.data[2] = key_status; // default
+        switch (temp_cfg[key_number].func) {
+
+            // 总开关
+            case ALL_ON_OFF: {
+                if (BIT4(temp_cfg[key_number].perm) && BIT6(temp_cfg[key_number].perm)) { // "只开"+"取反"
+                    send_frame.data[2] = false;
+                }
+                if (BIT4(temp_cfg[key_number].perm) && !BIT6(temp_cfg[key_number].perm)) { // "只开"
+                    send_frame.data[2] = true;
+                }
+            } break;
+
+            // 场景模式
+            case SCENE_MODE:
+                if (BIT4(temp_cfg[key_number].perm)) { // "只开"
+                    send_frame.data[2] = true;
+                }
+                break;
+            default:
+                break;
         }
     }
-#else
-    else if (cmd_type == COMMON_CMD) {
-        send_frame.data[1] = temp_cfg[key_number].func;
-        send_frame.data[2] = key_status; // default
-
-        if (temp_cfg[key_number].func == SCENE_MODE) {
-            if (BIT4(temp_cfg[key_number].perm)) { // "只开"
-                send_frame.data[2] = true;
-            }
-        }
-    }
-
-#endif
 
     // Set group,area,perm and scene_group
     send_frame.data[3] = temp_cfg[key_number].group;
@@ -388,12 +391,12 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     // Calculate and set the CRC
     send_frame.data[5] = panel_crc(send_frame.data, 5);
 
-    // 发送给自己，加一个按键号
+    // 发送给自己,加一个按键号
     send_frame.data[8] = key_number;
     send_frame.length  = 9;
     APP_PRINTF_BUF("send_frame", send_frame.data, send_frame.length);
     app_eventbus_publish(EVENT_PANEL_RX_MY, &send_frame);
-    // 发送给其他设备，去掉按键号
+    // 发送给其他设备,去掉按键号
     send_frame.length = 8;
 
     static rf_frame_t rf_tx;
@@ -408,6 +411,7 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     memcpy(last_data, data_p, data_len);
 
     rf_tx.rf_len = RF_PAYLOAD;
+
     app_rf_tx(&rf_tx, true);
     // APP_PRINTF_BUF("send", rf_tx.rf_data, rf_tx.rf_len);
 }
@@ -433,12 +437,14 @@ static void app_creat_frame(rf_frame_t *frame, rf_frame_type type, const reg_t *
 
 static void app_save_cfg(uint8_t *cfg_data, uint8_t length)
 {
+    APP_PRINTF("app_save_cfg\n");
     static uint32_t temp_cfg[10];
     app_uint8_to_uint32(cfg_data, 40, temp_cfg, sizeof(temp_cfg));
     __disable_irq();
     bsp_flash_write(FLASH_BASE_ADDR, temp_cfg, sizeof(temp_cfg));
     __enable_irq();
     app_load_config(CFG);
+    app_load_config(REG);
 }
 
 static void app_save_reg(uint8_t reg_addr, uint8_t *reg_data, uint8_t length)
@@ -490,4 +496,39 @@ static void app_save_reg(uint8_t reg_addr, uint8_t *reg_data, uint8_t length)
         __enable_irq();
         app_load_config(REG);
     }
+}
+
+static void app_add_info(uint8_t *payload, uint8_t start)
+{
+#if defined PANEL
+    const panel_cfg_t *temp_cfg = app_get_panel_cfg();
+
+    for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
+        payload[start + i] = temp_cfg[i].func;
+    }
+
+    for (uint8_t i = 0; i < CONFIG_NUMBER; i++) { // area/scene_group
+        if (temp_cfg[i].func == SCENE_MODE) {
+            payload[start + CONFIG_NUMBER + i] = temp_cfg[i].scene_group;
+        } else {
+            payload[start + CONFIG_NUMBER + i] = temp_cfg[i].group;
+        }
+    }
+#elif defined LIGHT_DRIVER_CT
+    const light_cfg_t *temp_cfg = app_get_light_cfg();
+
+    for (uint8_t i = 0; i < LED_CHANNEL; i++) { // 渐变时间
+        payload[start + i] = temp_cfg[i].fade_time;
+    }
+
+    for (uint8_t i = 0; i < LED_CHANNEL; i++) { // 死区
+        payload[start + LED_CHANNEL + i * 2]     = (temp_cfg[i].dead_zone >> 8) & 0xFF;
+        payload[start + LED_CHANNEL + i * 2 + 1] = temp_cfg[i].dead_zone & 0xFF;
+    }
+
+    for (uint8_t i = 0; i < LED_CHANNEL; i++) { // 渐变曲线
+        payload[start + LED_CHANNEL * 3 + i] = temp_cfg[i].lum_curve;
+    }
+
+#endif
 }

@@ -3,16 +3,46 @@
 #include <stdint.h>
 #include "../bsp/bsp_pcb.h"
 #include "../bsp/bsp_flash.h"
+#include "../app/pwm_hw.h"
 
+#if defined PANEL
+#if defined PANEL_A20
+
+#define VER 0x21 // A20面板软件版本
+
+#else
+#define VER 0x21 // A18面板软件版本 V1.2
+
+#endif
+#endif
+
+#if defined LIGHT_DRIVER_CT
+
+#if defined LIGHT_DRIVER_RELAY
+#define VER 0x10 // 继电器版本
+
+#else
+#define VER 0x10 // PWM版本
+
+#endif
+
+#endif
+
+#if defined SETTER
+#define VER 0x10
+#endif
 // 只读项目
-#define VER 0x10 // software version
 
 #if defined REPEATER
 #define TYPE 0x0D
 #elif defined SETTER
 #define TYPE 0x7E
 #elif defined LIGHT_DRIVER_CT
+#ifndef LIGHT_DRIVER_RELAY
 #define TYPE 0x17
+#else
+#define TYPE 0x17
+#endif
 #endif
 
 #define TX_DB 0x09 // TX power
@@ -49,7 +79,7 @@ typedef struct
     uint8_t scene_group; // 场景分组
 
     gpio_pin_t led_w_pin;    // 按键所控白灯
-    gpio_pin_t led_y_pin;    // 按键所控黄灯
+    pwm_hw_pins led_y_pin;   // 按键所控黄灯
     gpio_pin_t relay_pin[4]; // 按键所控继电器
 } panel_cfg_t;
 
@@ -61,9 +91,12 @@ typedef struct
     uint8_t perm;        // 按键权限
     uint8_t scene_group; // 场景分组
 
-    // uint8_t led_channel;  // led 路数
     uint8_t led_lum;      // 本路调光
     uint8_t scene_lum[8]; // 场景对应亮度
+    uint8_t fade_time;    // 渐变时间
+    uint16_t dead_zone;   // 死区
+    uint8_t lum_curve;    // 调光曲线
+    pwm_hw_pins led_pin;
 
 } light_cfg_t;
 
@@ -94,12 +127,17 @@ typedef struct {
 static uint8_t my_uid[12] = {0};
 void app_load_config(cfg_addr addr);
 
-const panel_cfg_t *app_get_panel_cfg(void);
 const light_cfg_t *app_get_light_cfg(void);
+const uint8_t app_get_light_driver_type(void);
 
+const panel_cfg_t *app_get_panel_cfg(void);
 const uint8_t app_get_panel_type(void);
+
 const uint8_t *app_get_cfg(void);
 
 reg_t *app_get_reg(void);
 const uint8_t app_get_sim_key_number(void);
+
+
+
 #endif

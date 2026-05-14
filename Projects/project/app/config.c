@@ -17,13 +17,18 @@ static uint8_t DEF_DEFAULT_CONFIG[40] = {0xF2, 0x0E, 0x0E, 0x0E, 0x0E, 0x00, 0x0
                                          0x00, 0x0E, 0x00, 0x00, 0x44, 0x00, 0x21, 0x00, 0x0E, 0x00, 0x00, 0x21, 0x00, 0xB0, 0x21, 0x84, 0x00, 0x00, 0x00, 0x00};
 
 static panel_cfg_t my_panel_cfg[CONFIG_NUMBER] = {0};
-static uint8_t panel_type; // 0x00 普通面板 0x14 长供电面板
+
+static uint8_t panel_type = DEVICE_PANEL; // 0x00 普通面板 0x14 长供电面板
 
 #elif defined LIGHT_DRIVER_CT
-static uint8_t DEF_DEFAULT_CONFIG[40] = {0xE2, 0x21, 0x0E, 0x00, 0x21, 0x00, 0x00, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3F,
-                                         0xE2, 0x22, 0x0E, 0x00, 0x21, 0x00, 0x00, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3F};
+static uint8_t DEF_DEFAULT_CONFIG[40] = {0xE2, 0x21, 0x0E, 0x00, 0x21, 0x00, 0x00, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0A, 0x00, 0x05, 0x01,
+                                         0xE2, 0x22, 0x0E, 0x00, 0x21, 0x00, 0x00, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0A, 0x00, 0x05, 0x01};
+
+static uint8_t light_driver_type = DEVICE_LIGHT_DRIVE; // 0x17 受控电灯驱 0x18 常供电灯驱
 
 static light_cfg_t my_light_cfg_t[LED_CHANNEL] = {0};
+#else
+static uint8_t DEF_DEFAULT_CONFIG[40] = {0};
 #endif
 
 // 函数声明
@@ -60,10 +65,12 @@ void app_load_config(cfg_addr addr)
             if (read_data[0] == 0xFFFFFFFF) { // If the CFG is not configured,then the default CFG will be used
                 APP_PRINTF("cfg is null\n");
                 memcpy(new_data, DEF_DEFAULT_CONFIG, sizeof(DEF_DEFAULT_CONFIG));
-
+#if defined PANEL
                 new_data[38]   = SIM_6KEY; // 默认使用6键
                 sim_key_number = SIM_6KEY;
+#elif defined LIGHT_DRIVER_CT
 
+#endif
             } else {
                 if (app_uint32_to_uint8(read_data, sizeof(read_data) / sizeof(read_data[0]), new_data, sizeof(new_data)) != true) {
                     APP_ERROR("app_uint32_to_uint8 error\n");
@@ -123,8 +130,10 @@ void app_load_config(cfg_addr addr)
             my_reg.room_h     = new_data[2];
             my_reg.room_l     = new_data[3];
             my_reg.forward_en = new_data[4];
-            my_reg.key        = sim_key_number;
-#if 1
+#if defined PANEL
+            my_reg.key = sim_key_number;
+            APP_PRINTF("key:%d\n", my_reg.key);
+#endif
             APP_PRINTF("ver:%02X\n", my_reg.ver);
             APP_PRINTF("cpadd:%02X%02X\n", my_reg.cpadd_h, my_reg.cpadd_l);
             APP_PRINTF("cplei:%02X\n", my_reg.cplei);
@@ -134,10 +143,7 @@ void app_load_config(cfg_addr addr)
             APP_PRINTF("forward_en:%02X\n", my_reg.forward_en);
             APP_PRINTF("tx_db:%d\n", my_reg.tx_db);
             APP_PRINTF("tx_su:%d\n", my_reg.tx_su);
-#if defined PANEL
-            APP_PRINTF("key:%d\n", my_reg.key);
-#endif
-#endif
+
         } break;
         default:
             break;
@@ -147,8 +153,10 @@ void app_load_config(cfg_addr addr)
 #if defined PANEL
 static void app_load_panel_a11(uint8_t *data, uint8_t length)
 {
-    gpio_pin_t RELAY_GPIO_MAP[CONFIG_NUMBER] = RELAY_GPIO_MAP_DEF;
-    gpio_pin_t LED_W_GPIO_MAP[CONFIG_NUMBER] = LED_W_GPIO_MAP_DEF;
+    gpio_pin_t RELAY_GPIO_MAP[CONFIG_NUMBER]  = RELAY_GPIO_MAP_DEF;
+    gpio_pin_t LED_W_GPIO_MAP[CONFIG_NUMBER]  = LED_W_GPIO_MAP_DEF;
+    pwm_hw_pins LED_Y_GPIO_MAP[CONFIG_NUMBER] = LED_Y_GPIO_MAP_DEF;
+
     for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
         panel_cfg_t *const p_cfg = &my_panel_cfg[i];
         if (i < 4) {
@@ -171,6 +179,7 @@ static void app_load_panel_a11(uint8_t *data, uint8_t length)
             p_cfg->scene_group = data[32];
         }
         p_cfg->led_w_pin = LED_W_GPIO_MAP[i];
+        p_cfg->led_y_pin = LED_Y_GPIO_MAP[i];
     }
 
     sim_key_number = data[length - 2];
@@ -196,27 +205,39 @@ static void app_load_panel_a11(uint8_t *data, uint8_t length)
 #if defined LIGHT_DRIVER_CT
 static void app_load_light_ct(uint8_t *data, uint8_t length)
 {
-    for (uint8_t i = 0; i < 2; i++) {
+    pwm_hw_pins LED_PWM_GPIO_MAP[LED_CHANNEL] = LED_GPIO_MAP_DEF;
+    for (uint8_t i = 0; i < LED_CHANNEL; i++) {
 
-        my_light_cfg_t[i].func        = data[2 + i * 17];
-        my_light_cfg_t[i].group       = data[3 + i * 17];
-        my_light_cfg_t[i].perm        = data[4 + i * 17];
-        my_light_cfg_t[i].area        = data[5 + i * 17];
-        my_light_cfg_t[i].scene_group = data[6 + i * 17];
-        my_light_cfg_t[i].led_lum     = data[7 + i * 17];
-        memcpy(my_light_cfg_t[i].scene_lum, &data[8 + i * 17], sizeof(my_light_cfg_t[i].scene_lum));
+        my_light_cfg_t[i].func        = data[2 + i * 20];
+        my_light_cfg_t[i].group       = data[3 + i * 20];
+        my_light_cfg_t[i].perm        = data[4 + i * 20];
+        my_light_cfg_t[i].area        = data[5 + i * 20];
+        my_light_cfg_t[i].scene_group = data[6 + i * 20];
+        my_light_cfg_t[i].led_lum     = data[7 + i * 20];
+        memcpy(my_light_cfg_t[i].scene_lum, &data[8 + i * 20], sizeof(my_light_cfg_t[i].scene_lum));
+        my_light_cfg_t[i].fade_time = data[16 + i * 20];
+        my_light_cfg_t[i].dead_zone = (data[17 + i * 20] << 8) | (data[18 + i * 20]);
+
+        my_light_cfg_t[i].lum_curve = H_BIT(data[19 + i * 20]); // 高4位是调光曲线
+
+        if (i == 0) { // 第一路的调光曲线的低4位是产品类型
+            if (L_BIT(data[19 + i * 20]) == 0) {
+                light_driver_type = DEVICE_LIGHT_DRIVE; // 受控电灯驱
+            } else if (L_BIT(data[19 + i * 20]) == 1) {
+                light_driver_type = DEVICE_LIGHT_DRIVE_AP; // 常供电灯驱
+            }
+        }
+
+        my_light_cfg_t[i].led_pin = LED_PWM_GPIO_MAP[i];
     }
 
-#if 1
     for (uint8_t i = 0; i < LED_CHANNEL; i++) {
         light_cfg_t *const p_cfg = &my_light_cfg_t[i];
-        APP_PRINTF("%02X %02X %02X %02X %02X |", p_cfg->func, p_cfg->group, p_cfg->area, p_cfg->perm, p_cfg->scene_group);
+        APP_PRINTF("%02X %02X %02X %02X %02X | %d %d %d |", p_cfg->func, p_cfg->group, p_cfg->area, p_cfg->perm, p_cfg->scene_group, p_cfg->fade_time, p_cfg->dead_zone, p_cfg->lum_curve);
         APP_PRINTF_BUF("scene_lum", p_cfg->scene_lum, sizeof(p_cfg->scene_lum));
-        APP_PRINTF("\n");
     }
-    APP_PRINTF("sim_key_number:%02X\n", sim_key_number);
+    APP_PRINTF("device_type:%02X\n", light_driver_type);
     APP_PRINTF("\n");
-#endif
 }
 #endif
 
@@ -268,6 +289,10 @@ const uint8_t app_get_panel_type(void)
 const light_cfg_t *app_get_light_cfg(void)
 {
     return my_light_cfg_t;
+}
+const uint8_t app_get_light_driver_type(void)
+{
+    return light_driver_type;
 }
 
 #endif
