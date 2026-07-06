@@ -87,7 +87,7 @@ void app_rf_rx_check(rf_frame_t *buf)
 
     uint8_t cmd = buf->rf_data[4];
 
-    if (src_room_addr != my_room_addr && cmd != Request && cmd != FindSB) {
+    if (src_room_addr != my_room_addr && cmd != Request && cmd != FindSB) { // 若不是本房间,且不是查找设备和请求组网
         APP_PRINTF("my_room_addr:%04X src_room_addr:%04X\n", my_room_addr, src_room_addr);
         return;
     }
@@ -167,6 +167,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                 app_save_cfg(temp_data, reg_length); // Save cfg
 
             } else if (buf->rf_data[7] == 4) { // 改变房间号和信道号(和组网流程类似)
+                APP_PRINTF("set addr and room\n");
 
                 app_save_reg(4, &buf->rf_data[11], 5);
 
@@ -186,7 +187,7 @@ void app_rf_rx_check(rf_frame_t *buf)
         case SourceData:
         case ForwardData: {
 
-            uint16_t delay_forward = reg->zuwflag * 10 + BASE_DELAY;
+            uint16_t delay_forward = BASE_DELAY + reg->zuwflag * 10; // 转发延时 = 基础延时 + (组网标识 * 10)
             bool need_forward      = true;
             if (cmd == ForwardData) {
                 // Compare with last forwarded data to avoid duplication
@@ -213,7 +214,7 @@ void app_rf_rx_check(rf_frame_t *buf)
                 memcpy(last_data, data_p, data_len);
                 bsp_start_timer(10, 2000, delay_clear_last_data, NULL, TMR_ONCE_MODE);
 
-#if defined PANEL
+#if defined PANEL || defined PANEL_POWER
                 // Execute local panel action
                 static frame_t temp_panel_frame;
                 memcpy(temp_panel_frame.data, data_p, data_len);
@@ -291,7 +292,10 @@ void app_rf_rx_check(rf_frame_t *buf)
             memcpy(&rf_rx.rf_data[11], payload, sizeof(payload)); // 拷贝到发送数据
             rf_rx.rf_len = RF_PAYLOAD;
             APP_PRINTF_BUF("rf_rx", rf_rx.rf_data, rf_rx.rf_len);
-            uint32_t delay_ms = (uint32_t)(reg->zuwflag * 50 + BASE_DELAY);
+
+            uint8_t random_delay = get_random_0_10();
+            uint32_t delay_ms    = (uint32_t)(BASE_DELAY + reg->zuwflag * 10 + random_delay);
+            APP_PRINTF("delay_ms:%d\n", delay_ms);
             bsp_start_timer(5, delay_ms, delay_send_find_ack, &rf_rx, TMR_ONCE_MODE);
         } break;
         default:
@@ -416,6 +420,25 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     // APP_PRINTF_BUF("send", rf_tx.rf_data, rf_tx.rf_len);
 }
 #endif
+
+void app_send_data(uint8_t *data, uint8_t data_length)
+{
+    static rf_frame_t rf_tx;
+    memset(&rf_tx, 0, sizeof(rf_tx));
+    reg_t *temp_reg = app_get_reg();
+    app_creat_frame(&rf_tx, SourceData, temp_reg);
+    rf_tx.rf_data[10] = data_length;
+    memcpy(&rf_tx.rf_data[11], data, data_length);
+
+    uint8_t *data_p  = &rf_tx.rf_data[11];
+    uint8_t data_len = rf_tx.rf_data[10];
+
+    memcpy(last_data, data_p, data_len);
+
+    rf_tx.rf_len = RF_PAYLOAD;
+    app_rf_tx(&rf_tx, true);
+    APP_PRINTF_BUF("send", rf_tx.rf_data, rf_tx.rf_len);
+}
 
 // Used for creating RF frames
 static void app_creat_frame(rf_frame_t *frame, rf_frame_type type, const reg_t *reg)

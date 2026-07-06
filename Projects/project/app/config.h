@@ -8,10 +8,10 @@
 #if defined PANEL
 #if defined PANEL_A20
 
-#define VER 0x21 // A20面板软件版本
+#define VER 0x15 // A20面板软件版本 V1.5
 
 #else
-#define VER 0x21 // A18面板软件版本 V1.2
+#define VER 0x15 // A18面板软件版本 V1.5
 
 #endif
 #endif
@@ -28,21 +28,34 @@
 
 #endif
 
+#if defined PANEL_POWER
+#define VER 0x01
+#endif
+
 #if defined SETTER
 #define VER 0x10
 #endif
 // 只读项目
+#if defined PANLE
+#define TYPE 0x00 // 灯控面板
 
-#if defined REPEATER
-#define TYPE 0x0D
+#elif defined REPEATER
+#define TYPE 0x0D // 转发器
+
 #elif defined SETTER
-#define TYPE 0x7E
+#define TYPE 0x7E // 设置器
+
 #elif defined LIGHT_DRIVER_CT
 #ifndef LIGHT_DRIVER_RELAY
-#define TYPE 0x17
+#define TYPE 0x17 // 普通灯驱
+
 #else
-#define TYPE 0x17
+#define TYPE 0x19 // 继电器灯驱
+
 #endif
+#elif defined PANEL_POWER
+#define TYPE 0x20 // 取电面板
+
 #endif
 
 #define TX_DB 0x09 // TX power
@@ -137,7 +150,5 @@ const uint8_t *app_get_cfg(void);
 
 reg_t *app_get_reg(void);
 const uint8_t app_get_sim_key_number(void);
-
-
 
 #endif

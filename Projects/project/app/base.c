@@ -4,6 +4,7 @@
 #include "py32f0xx.h"
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 
 bool app_uint8_to_uint32(const uint8_t *input, size_t input_count, uint32_t *output, size_t output_count)
 {
@@ -50,6 +51,29 @@ void app_get_uid(uint8_t *uid)
     memcpy(uid, &uid0, 4);
     memcpy(uid + 4, &uid1, 4);
     memcpy(uid + 8, &uid2, 4);
+}
+
+// 返回0~10的随机数,根据UID
+uint8_t get_random_0_10(void)
+{
+    // 静态变量,用于记录是否已经播过种
+    static uint8_t is_seeded = 0;
+
+    // 第一次调用时,自动进行 UID 播种
+    if (is_seeded == 0) {
+        uint8_t my_uid[12];
+        app_get_uid(my_uid);
+        APP_PRINTF_BUF("my_uid", my_uid, sizeof(my_uid));
+        uint32_t seed = 0;
+        seed ^= *(uint32_t *)&my_uid[0];
+        seed ^= *(uint32_t *)&my_uid[4];
+        seed ^= *(uint32_t *)&my_uid[8];
+
+        srand(seed);
+        is_seeded = 1;
+    }
+
+    return rand() % 11;
 }
 
 uint16_t app_calculate_average(const uint16_t *buffer, uint16_t count)

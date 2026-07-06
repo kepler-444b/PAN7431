@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #define BAUDRATE 115200
-#define APP_DEBUG   // 用于开启整个工程的打印信息
+// #define APP_DEBUG   // 用于开启整个工程的打印信息
 #define UART2_DEBUG // USART2 仅用于调试
 // #define USE_RTT  // 使用RTT调试
 

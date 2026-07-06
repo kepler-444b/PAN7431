@@ -10,5 +10,7 @@ void app_jump_device(void)
     app_repeater_init();
 #elif defined LIGHT_DRIVER_CT
     light_driver_ct_init();
+#elif defined PANEL_POWER
+    panel_power_init();
 #endif
 }

@@ -2,6 +2,7 @@
 #define __BSP_TIMER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum {
     TMR_ONCE_MODE = 0,

@@ -96,6 +96,8 @@ virtualFolder:
         - path: ../../device/repeater.h
         - path: ../../device/light_driver_ct.c
         - path: ../../device/light_driver_ct.h
+        - path: ../../device/panel_power.c
+        - path: ../../device/panel_power.h
       folders: []
     - name: ::CMSIS
       files: []

@@ -135,6 +135,13 @@ void pwm_hw_set_duty(pwm_hw_pins pins, uint16_t duty_val)
         case PWM_PA11:
             __HAL_TIM_SET_COMPARE(&Timer1, TIM_CHANNEL_4, duty_val);
             break;
+        case PWM_PB4:
+            __HAL_TIM_SET_COMPARE(&Timer3, TIM_CHANNEL_1, duty_val);
+            break;
+
+        case PWM_PB5:
+            __HAL_TIM_SET_COMPARE(&Timer3, TIM_CHANNEL_2, duty_val);
+            break;
         default:
             break;
     }

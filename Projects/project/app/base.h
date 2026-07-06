@@ -30,6 +30,8 @@ uint16_t app_calculate_average(const uint16_t *buffer, uint16_t count);
 uint8_t app_calculate_std_dev(const uint8_t *array, uint8_t count, uint8_t mean);
 
 void app_get_uid(uint8_t *uid);
+uint8_t get_random_0_10(void);
+
 bool app_uint8_to_uint32(const uint8_t *input, size_t input_count, uint32_t *output, size_t output_count);
 bool app_uint32_to_uint8(const uint32_t *input, size_t input_count, uint8_t *output, size_t output_count);
 uint16_t app_get_crc(uint8_t *buffer, uint8_t len);

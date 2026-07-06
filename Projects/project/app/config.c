@@ -94,11 +94,11 @@ void app_load_config(cfg_addr addr)
                 APP_PRINTF("reg is null\n");
                 memset(new_data, 0, sizeof(new_data));
                 // default reg
-                new_data[0] = 0x2B; // channel
-                new_data[1] = 0x02; // zuwflag
-                new_data[2] = 0x02; // room_h
-                new_data[3] = 0x02; // room_l
-                new_data[4] = 0x05; // forward_en
+                new_data[0] = 0x00; // channel
+                new_data[1] = 0x00; // zuwflag
+                new_data[2] = 0x01; // room_h
+                new_data[3] = 0x01; // room_l
+                new_data[4] = 0x01; // forward_en
 #if defined PANEL
                 new_data[5] = sim_key_number; // key_number
 #endif

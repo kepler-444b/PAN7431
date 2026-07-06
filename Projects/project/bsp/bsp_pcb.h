@@ -3,19 +3,36 @@
 #include "../app/gpio.h"
 #include "../device/device_manager.h"
 
+#if defined PANEL_TD // 横向面板与竖向面板所用的触发电压不同
+#define PANEL_VOL_RANGE_DEF          \
+    [0] = {.vol_range = {30, 40}},   \
+    [1] = {.vol_range = {85, 95}},   \
+    [2] = {.vol_range = {145, 155}}, \
+    [3] = {.vol_range = {0, 10}},    \
+    [4] = {.vol_range = {195, 205}}, \
+    [5] = {.vol_range = {235, 245}}
+
+#else
 #define PANEL_VOL_RANGE_DEF          \
     [0] = {.vol_range = {0, 10}},    \
     [1] = {.vol_range = {30, 40}},   \
     [2] = {.vol_range = {85, 95}},   \
     [3] = {.vol_range = {145, 155}}, \
-    [4] = {.vol_range = {170, 180}}, \
-    [5] = {.vol_range = {195, 205}}
+    [4] = {.vol_range = {195, 205}}, \
+    [5] = {.vol_range = {235, 245}}
+#endif
 
 #define RELAY_GPIO_MAP_DEF {PB1, PA5, PA6, PB0} // 继电器 GPIO 映射
 
 #if defined PANEL_A20
+#if defined PANEL_TD
+#define LED_W_GPIO_MAP_DEF {PA3, PA7, PA12, PA2, PA15, PB2} // white led
+#define LED_Y_GPIO_MAP_DEF {PWM_PA8, PWM_PA10, PWM_PA11, PWM_PB3, PWM_PB4, PWM_PB5}
+#else
 #define LED_W_GPIO_MAP_DEF {PA2, PA3, PA7, PA12, PA15, PB2} // white led
 #define LED_Y_GPIO_MAP_DEF {PWM_PB3, PWM_PA8, PWM_PA10, PWM_PA11, PWM_PB4, PWM_PB5}
+#endif
+
 #else
 #define LED_W_GPIO_MAP_DEF {PA3, PA2, PB5, PB4, PA10, PA11}                       // white led
 #define LED_Y_GPIO_MAP_DEF {PWM_PA8, PWM_PA8, PWM_PA8, PWM_PA8, PWM_PA8, PWM_PA8} // yellow led
@@ -27,6 +44,7 @@
 #endif
 
 void bsp_panel_init(void);
+void bsp_panel_power_init(void);
 void bsp_setter_init(void);
 void bsp_repeater_init(void);
 void bsp_light_driver_ct_init(void);

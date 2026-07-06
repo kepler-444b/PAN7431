@@ -26,10 +26,10 @@ void app_usart2_rx_callback(usart_rx2_callback_t callback)
 static void bsp_uart_gpio_init(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-
     __HAL_RCC_UARTx_RX_GPIO_CLK_ENABLE();
     __HAL_RCC_UARTx_TX_GPIO_CLK_ENABLE();
 
+#if 0
     // RX1
     GPIO_InitStruct.Pin       = UART1_RX_PIN;
     GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
@@ -42,7 +42,7 @@ static void bsp_uart_gpio_init(void)
     GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Alternate = UART1_TX_ALTERNATE_AFn;
     HAL_GPIO_Init(UART1_TX_PORT, &GPIO_InitStruct);
-
+#endif
     // RX2
     GPIO_InitStruct.Pin       = UART2_RX_PIN;
     GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;

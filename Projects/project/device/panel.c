@@ -245,6 +245,19 @@ void panel_device_init(void)
 }
 static void panel_read_adc(void *arg)
 {
+#if 0 // 庞洛洛让我测试定时开关
+    static uint16_t count;
+    static bool status;
+    count++;
+    if (count > 100) {
+        const panel_cfg_t *p_cfg = app_get_panel_cfg();
+
+        status = !status;
+        count  = 0;
+
+        APP_SET_GPIO(p_cfg->relay_pin[0], status);
+    }
+#endif
     uint16_t adc_value = app_get_adc_value();
     if (adc_value != ERR_VOL) { // Invalid Voltage
         my_adc_value.vol = adc_value;
@@ -291,7 +304,7 @@ static void process_panel_adc(ADC_PARAMS)
             continue; // 检查平均值是否在有效范围
         }
         if (!temp_status[i].k_press && !temp_common->enter_config) { // 处理按键按下
-
+            APP_PRINTF("i:%d\n", i);
             temp_common->key_locked = true; // 锁键
 
             const panel_cfg_t *temp_cfg = app_get_panel_cfg();
@@ -318,7 +331,11 @@ static void process_panel_adc(ADC_PARAMS)
                     break;
                 }
                 case SIM_2KEY: {
+#if defined PANEL_TD
+                    const uint8_t key_pairs[][2] = {{0, 3}, {1, 2}}; // 映射关系
+#else
                     const uint8_t key_pairs[][2] = {{0, 1}, {2, 3}}; // 映射关系
+#endif
                     for (int pair_idx = 0; pair_idx < CONFIG_NUMBER; pair_idx++) {
                         uint8_t main_key   = key_pairs[pair_idx][0]; // 主按键
                         uint8_t mapped_key = key_pairs[pair_idx][1]; // 从键
@@ -362,7 +379,7 @@ static void process_panel_adc(ADC_PARAMS)
 static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t main_key, uint8_t slave_key, bool is_toggle)
 {
 
-    // APP_PRINTF("cmd_idx:%d main_key:%d slave_key:%d\n", cmd_idx, main_key, slave_key);
+    APP_PRINTF("cmd_idx:%d main_key:%d slave_key:%d\n", cmd_idx, main_key, slave_key);
     bool is_special = temp_status[cmd_idx].r_short;
     // APP_PRINTF("is_special:%d\n", is_special);
     if (is_toggle) { // 切换按键状态
@@ -954,16 +971,29 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
                 set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
             }
         } break;
-        case SIM_2KEY: {
+        case SIM_2KEY: { // 2 键映射
             if (idx == 0 || idx == 1) {
+#if defined PANEL_TD
+                if (idx == 0) {
+                    set_panel_status(0, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
+
+                } else if (idx == 1) {
+                    set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
+                }
+                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 控制主按键的继电器
+#else
                 if (idx == 0) {
                     set_panel_status(0, flag, PANEL_DO_KEY_LIGHT);
                     set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
+
                 } else if (idx == 1) {
                     set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
                     set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
                 }
                 set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 控制主按键的继电器
+#endif
             } else {
                 set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
             }
@@ -1132,10 +1162,10 @@ static void panel_all_close(FUNC_PARAMS) // 总关
                 panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
             } break;
             case DND_MODE:
-                panel_fast_exe(W_R | 0x01, _i);
+                panel_fast_exe(W_R | 0x01, _i); // 如果"勿扰"勾选了"总关",则开"勿扰"
                 break;
             case ALL_ON_OFF:
-                panel_fast_exe(W_R | 0x00, _i);
+                panel_fast_exe(W_R | 0x00, _i); // 如果"清理"勾选了"总关",则关"清理"
                 break;
             case SCENE_MODE:
             case LIGHT_MODE:
@@ -1203,10 +1233,16 @@ static void panel_all_on_off(FUNC_PARAMS) // all_on_off
                 }
                 break;
 
-            case DND_MODE:
-                panel_fast_exe(W_R | (~data->data[2] & 0x01), _i);
+            case DND_MODE: // 如果"勿扰"勾选了"总开关",则受"总开关"的"关"控制,其控制形式为:开启"勿扰"
+                if (data->data[2] == false) {
+                    panel_fast_exe(W_R | 0x01, _i);
+                }
                 break;
-
+            case CLEAN_ROOM: // 如果"清理"勾选了"总开关",则受"总开关"的"关"控制,其控制形式为:关闭"清理"
+                if (data->data[2] == false) {
+                    panel_fast_exe(W_R | 0x00, _i);
+                }
+                break;
             case NIGHT_LIGHT: {
                 if (BIT6(p_cfg->perm)) { // 勾选取反后,夜灯随总开关的总开而打开,随总开关的总关而关闭,该功能只对总开关有影响
                     panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
@@ -1218,7 +1254,6 @@ static void panel_all_on_off(FUNC_PARAMS) // all_on_off
 
             case LIGHT_MODE:
             case DIMMING_4:
-            case CLEAN_ROOM:
                 if (BIT7(p_cfg->perm) && !data->data[2]) { // 如果勾选了"不总开",则不受"总开关"的"总开"控制
                     panel_fast_exe(W_R | 0x00, _i);
                 } else if (!BIT7(p_cfg->perm)) { //  如果没有勾选"不总开"
