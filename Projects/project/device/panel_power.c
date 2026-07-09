@@ -51,7 +51,8 @@ typedef struct
 
 typedef struct
 {
-    bool key_statue; // 按键状态
+    bool key_status;      // 按键状态
+    bool key_last_status; // 按键上次状态
 
     bool led_filck;           // 闪烁
     bool key_long_press;      // 长按状态
@@ -84,7 +85,7 @@ typedef struct {
 
 // 函数声明
 static void panel_read_adc(void *arg);
-static void panel_ctrl_led_all(bool led_state);
+static void panel_ctrl_status_by_kay(bool led_state);
 static void panel_ctrl_led_b_all(uint16_t lum);
 static void process_led_flicker(common_panel_t *common_panel);
 static void process_panel_adc(panel_status_t *temp_status, common_panel_t *temp_common, adc_value_t *adc_value);
@@ -125,6 +126,8 @@ void panel_power_init(void)
     app_eventbus_subscribe(panel_event_handler);
     bsp_start_timer(2, 5, panel_read_adc, NULL, TMR_AUTO_MODE);
     APP_PRINTF("panel_power_init\n");
+
+    panel_ctrl_status_by_kay(false); // 上电默认为"电源关"
 }
 
 static void panel_read_adc(void *arg)
@@ -137,6 +140,7 @@ static void panel_read_adc(void *arg)
     if (my_common_panel.led_filck) {
         process_led_flicker(&my_common_panel);
     }
+
     // 延迟 20s 后发送拔卡命令
     if (my_common_panel.remove_card) {
 
@@ -147,7 +151,10 @@ static void panel_read_adc(void *arg)
         if (my_common_panel.remove_card_count >= 4000) { // 20s 后关闭继电器
 
             zero_set_gpio(PB1, false); // 关闭继电器
-            panel_ctrl_led_b_all(2400);
+
+            app_set_pwm_hw_fade(my_panel_power_pin[0].led_y_pin, 2400, 1000, 5, 1);
+            app_set_pwm_hw_fade(my_panel_power_pin[3].led_y_pin, 2400, 1000, 5, 1);
+            app_set_pwm_hw_fade(my_panel_power_pin[4].led_y_pin, 2400, 1000, 5, 1);
 
             my_common_panel.remove_card       = false;
             my_common_panel.remove_card_count = 0;
@@ -157,10 +164,13 @@ static void panel_read_adc(void *arg)
             my_common_panel.led_b_filck = !my_common_panel.led_b_filck;
             bool state                  = my_common_panel.led_b_filck;
 
-            panel_ctrl_led_b_all(state ? 0 : 2400);
+            app_set_pwm_hw_fade(my_panel_power_pin[0].led_y_pin, state ? 0 : 2400, 1000, 5, 1);
+            app_set_pwm_hw_fade(my_panel_power_pin[3].led_y_pin, state ? 0 : 2400, 1000, 5, 1);
+            app_set_pwm_hw_fade(my_panel_power_pin[4].led_y_pin, state ? 0 : 2400, 1000, 5, 1);
         }
         my_common_panel.remove_card_count++;
     }
+
     // 延时 2s 后发送插卡命令
     if (my_common_panel.insert_card) {
 
@@ -184,12 +194,16 @@ static void panel_read_adc(void *arg)
         }
         my_common_panel.all_close_last = my_common_panel.all_close;
     }
+
     // 延时执行"总关背光"
     if (my_common_panel.bl_close) {
         my_common_panel.bl_delay_count++;
 
         if (my_common_panel.bl_delay_count >= 300) { // 关闭背光灯
-            panel_ctrl_led_b_all(0);
+
+            for (uint8_t i = 0; i < 6; i++) {
+                app_set_pwm_hw_fade(my_panel_power_pin[i].led_y_pin, 0, 1000, 5, 1);
+            }
         }
         if (my_common_panel.bl_delay_count >= 800) { // 关闭指示灯
 
@@ -239,13 +253,13 @@ static void process_panel_adc(panel_status_t *temp_status, common_panel_t *temp_
 
             if (my_common_panel.all_close) { // 当前已经在"总关背光"状态下
                 // 唤醒
-                if (my_common_panel.key_statue) {
-                    panel_ctrl_led_all(true);
+                if (my_common_panel.key_status) {
+                    panel_ctrl_status_by_kay(true);
                 } else {
-                    panel_ctrl_led_b_all(2400);
+                    panel_ctrl_status_by_kay(false);
                 }
 
-                uint8_t cmd[8] = PANLE_ALL_CLOSE;
+                uint8_t cmd[8] = PANLE_ALL_CLOSE; // 总关命令
                 app_send_data(cmd, 8);
                 my_common_panel.all_close = false;
 
@@ -255,11 +269,23 @@ static void process_panel_adc(panel_status_t *temp_status, common_panel_t *temp_
                 }
                 return;
             }
-            my_common_panel.key_statue = !my_common_panel.key_statue;
+            if ((i == 1 || i == 2 || i == 5)) {
+                my_common_panel.key_status = false;
+            } else if ((i == 0 || i == 3 || i == 4)) {
+                my_common_panel.key_status = true;
+            }
 
-            bool status = my_common_panel.key_statue;
+            bool status     = my_common_panel.key_status;
+            bool new_status = false;
+            if (my_common_panel.key_last_status != my_common_panel.key_status) {
+                my_common_panel.key_last_status = my_common_panel.key_status;
 
-            panel_ctrl_led_all(status);
+                new_status = true;
+            }
+            if (!new_status) { // 为了避免重复发码,若按下重复的按键,直接退出
+                return;
+            }
+            panel_ctrl_status_by_kay(status);
 
             if (status) { // 插卡命令
 
@@ -319,10 +345,10 @@ static void panel_event_handler(event_type_e event, void *params)
             if (my_common_panel.all_close) { // 进入"总关背光"
 
                 APP_PRINTF("wake up\n");
-                if (my_common_panel.key_statue) {
-                    panel_ctrl_led_all(true);
+                if (my_common_panel.key_status) {
+                    panel_ctrl_status_by_kay(true);
                 } else {
-                    panel_ctrl_led_b_all(2400);
+                    panel_ctrl_status_by_kay(false);
                 }
 
                 my_common_panel.all_close = false;
@@ -351,32 +377,59 @@ static void panel_event_handler(event_type_e event, void *params)
     }
 }
 
+// 指示灯闪烁
 static void process_led_flicker(common_panel_t *common_panel)
 {
     common_panel->led_filck_count++;
     if (common_panel->led_filck_count <= 50) {
-        panel_ctrl_led_all(true);
+        panel_ctrl_status_by_kay(true);
     } else if (common_panel->led_filck_count <= 100) {
-        panel_ctrl_led_all(false);
+        panel_ctrl_status_by_kay(false);
     } else if (common_panel->led_filck_count <= 150) {
-        panel_ctrl_led_all(true);
+        panel_ctrl_status_by_kay(true);
     } else {
         common_panel->led_filck_count = 0;
         common_panel->led_filck       = false;
-        panel_ctrl_led_all(false);
+        panel_ctrl_status_by_kay(false);
     }
 }
 
-// 控制所有的白灯状态
-static void panel_ctrl_led_all(bool led_state)
+// 根据按键状态,控制白/黄灯状态
+static void panel_ctrl_status_by_kay(bool led_state)
 {
-    for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
-        APP_SET_GPIO(my_panel_power_pin[i].led_w_pin, led_state);
-        if (led_state) {
-            app_set_pwm_hw_fade(my_panel_power_pin[i].led_y_pin, 0, 100, 5, 1);
-        } else {
-            app_set_pwm_hw_fade(my_panel_power_pin[i].led_y_pin, 2400, 100, 5, 1);
-        }
+    if (led_state) { // 电源开
+        APP_SET_GPIO(my_panel_power_pin[1].led_w_pin, false);
+        APP_SET_GPIO(my_panel_power_pin[2].led_w_pin, false);
+        APP_SET_GPIO(my_panel_power_pin[5].led_w_pin, false);
+
+        app_set_pwm_hw_fade(my_panel_power_pin[1].led_y_pin, 2400, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[2].led_y_pin, 2400, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[5].led_y_pin, 2400, 100, 5, 1);
+
+        APP_SET_GPIO(my_panel_power_pin[0].led_w_pin, true);
+        APP_SET_GPIO(my_panel_power_pin[3].led_w_pin, true);
+        APP_SET_GPIO(my_panel_power_pin[4].led_w_pin, true);
+
+        app_set_pwm_hw_fade(my_panel_power_pin[0].led_y_pin, 0, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[3].led_y_pin, 0, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[4].led_y_pin, 0, 100, 5, 1);
+
+    } else { // 电源关
+        APP_SET_GPIO(my_panel_power_pin[1].led_w_pin, true);
+        APP_SET_GPIO(my_panel_power_pin[2].led_w_pin, true);
+        APP_SET_GPIO(my_panel_power_pin[5].led_w_pin, true);
+
+        app_set_pwm_hw_fade(my_panel_power_pin[1].led_y_pin, 0, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[2].led_y_pin, 0, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[5].led_y_pin, 0, 100, 5, 1);
+
+        APP_SET_GPIO(my_panel_power_pin[0].led_w_pin, false);
+        APP_SET_GPIO(my_panel_power_pin[3].led_w_pin, false);
+        APP_SET_GPIO(my_panel_power_pin[4].led_w_pin, false);
+
+        app_set_pwm_hw_fade(my_panel_power_pin[0].led_y_pin, 2400, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[3].led_y_pin, 2400, 100, 5, 1);
+        app_set_pwm_hw_fade(my_panel_power_pin[4].led_y_pin, 2400, 100, 5, 1);
     }
 }
 

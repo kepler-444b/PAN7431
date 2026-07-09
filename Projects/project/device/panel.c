@@ -347,7 +347,11 @@ static void process_panel_adc(ADC_PARAMS)
                     break;
                 }
                 case SIM_3KEY: {
+#if defined PANEL_TD
+                    const uint8_t key_pairs[][2] = {{0, 3}, {4, 5}, {2, 1}}; // 映射关系
+#else
                     const uint8_t key_pairs[][2] = {{0, 1}, {4, 5}, {2, 3}}; // 映射关系
+#endif
                     for (int pair_idx = 0; pair_idx < CONFIG_NUMBER; pair_idx++) {
                         uint8_t main_key   = key_pairs[pair_idx][0]; // 主按键
                         uint8_t mapped_key = key_pairs[pair_idx][1]; // 从键
@@ -376,12 +380,13 @@ static void process_panel_adc(ADC_PARAMS)
     }
 }
 
+// 处理面板按键映射关系
 static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t main_key, uint8_t slave_key, bool is_toggle)
 {
-
     APP_PRINTF("cmd_idx:%d main_key:%d slave_key:%d\n", cmd_idx, main_key, slave_key);
-    bool is_special = temp_status[cmd_idx].r_short;
-    // APP_PRINTF("is_special:%d\n", is_special);
+
+    bool is_special = temp_status[cmd_idx].r_short; // 如果当前按键的继电器处于"短开"状态,则标记为"特殊命令"
+
     if (is_toggle) { // 切换按键状态
         temp_status[main_key].k_status ^= 1;
         if (slave_key != 0xFF) { // 0xFF 表示没有从键
@@ -999,6 +1004,22 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
             }
         } break;
         case SIM_3KEY: {
+
+#if defined PANEL_TD
+            if (idx == 0 || idx == 1 || idx == 2) {
+                if (idx == 0) {
+                    set_panel_status(0, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
+                } else if (idx == 1) {
+                    set_panel_status(4, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(5, flag, PANEL_DO_KEY_LIGHT);
+                } else if (idx == 2) {
+                    set_panel_status(2, flag, PANEL_DO_KEY_LIGHT);
+                    set_panel_status(1, flag, PANEL_DO_KEY_LIGHT);
+                }
+                set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 控制主按键的继电器
+            }
+#else
             if (idx == 0 || idx == 1 || idx == 2) {
                 if (idx == 0) {
                     set_panel_status(0, flag, PANEL_DO_KEY_LIGHT);
@@ -1011,7 +1032,10 @@ static void panel_fast_exe(uint8_t flag, uint8_t idx)
                     set_panel_status(3, flag, PANEL_DO_KEY_LIGHT);
                 }
                 set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 控制主按键的继电器
-            } else {
+            }
+#endif
+            else {
+
                 set_panel_status(idx, flag, PANEL_DO_RELAY_ONLY); // 借用继电器
             }
             break;

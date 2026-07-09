@@ -8,7 +8,7 @@
 #if defined PANEL
 #if defined PANEL_A20
 
-#define VER 0x15 // A20面板软件版本 V1.5
+#define VER 0x16 // A20面板软件版本 V1.5
 
 #else
 #define VER 0x15 // A18面板软件版本 V1.5
@@ -29,7 +29,7 @@
 #endif
 
 #if defined PANEL_POWER
-#define VER 0x01
+#define VER 0x02
 #endif
 
 #if defined SETTER

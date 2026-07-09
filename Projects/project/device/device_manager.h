@@ -7,10 +7,10 @@
 #include "panel_power.h"
 
 // #define SETTER // 设置器
-// #define PANEL // 灯控面板
+#define PANEL // 灯控面板
 // #define REPEATER // 转发器
 // #define LIGHT_DRIVER_CT // 灯驱
-#define PANEL_POWER   // 取电面板
+// #define PANEL_POWER   // 取电面板
 
 #define CONFIG_NUMBER 6 // 配置信息个数
 #define LED_CHANNEL   2 // LED 路数
