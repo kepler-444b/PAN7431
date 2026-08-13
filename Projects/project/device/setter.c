@@ -178,7 +178,7 @@ static void tran_delay_stop_rassi(void *arg)
 }
 
 static void recv_from_soft(usart1_rx_buf_t *buf)
-{
+{ 
     uint8_t cmd = buf->data[2];
     uint8_t len = buf->data[3];
     APP_PRINTF_BUF("[recv from software]", buf->data, buf->len);

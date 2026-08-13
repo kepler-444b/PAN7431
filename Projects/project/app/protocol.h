@@ -55,12 +55,13 @@ typedef enum {
     QUICK_MULTI  = 0xE3, // quick (快装盒子)群发串码
     QUICK_END    = 0x30, // quick (快装盒子)结束串码
 
-    PANEL_HEAD   = 0xF1, // panel (面板)通讯数据
-    PANEL_SINGLE = 0xF2, // panel (面板)单发串码
-    PANEL_MULTI  = 0xF3, // panel (面板)群发串码
-    CARD_HEAD    = 0xFA, // 插拔卡和门磁数据帧头
-    APPLY_CONFIG = 0xF8, // 设置软件回复设置申请
-    EXIT_CONFIG  = 0xF9, // 设置软件"退出"配置模式
+    PANEL_HEAD     = 0xF1, // panel (面板)通讯数据
+    PANEL_SINGLE   = 0xF2, // panel (面板)单发串码
+    PANEL_MULTI    = 0xF3, // panel (面板)群发串码
+    CARD_HEAD      = 0xFA, // 插拔卡和门磁数据帧头
+    APPLY_CONFIG   = 0xF8, // 设置软件回复设置申请
+    EXIT_CONFIG    = 0xF9, // 设置软件"退出"配置模式
+    PANEL_TEST_CMD = 0xB1, // 产测面板,过零测试
 
     // 按键功能
     ALL_CLOSE     = 0x00, // 总关

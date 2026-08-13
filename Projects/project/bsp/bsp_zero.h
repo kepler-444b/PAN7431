@@ -5,5 +5,6 @@
 
 void bsp_zero_init(void);
 void zero_set_gpio(const gpio_pin_t pin, bool status);
+void zero_set_gpio_check(const gpio_pin_t pin, bool status);
 
 #endif

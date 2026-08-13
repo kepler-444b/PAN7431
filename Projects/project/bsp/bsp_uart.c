@@ -29,7 +29,7 @@ static void bsp_uart_gpio_init(void)
     __HAL_RCC_UARTx_RX_GPIO_CLK_ENABLE();
     __HAL_RCC_UARTx_TX_GPIO_CLK_ENABLE();
 
-#if 0
+#if defined SETTER
     // RX1
     GPIO_InitStruct.Pin       = UART1_RX_PIN;
     GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;

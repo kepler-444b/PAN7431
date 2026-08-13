@@ -8,10 +8,10 @@
 #if defined PANEL
 #if defined PANEL_A20
 
-#define VER 0x16 // A20面板软件版本 V1.5
+#define VER 0x21 // A20面板软件版本 V2.1
 
 #else
-#define VER 0x15 // A18面板软件版本 V1.5
+#define VER 0x21 // A18面板软件版本 V2.1
 
 #endif
 #endif
@@ -29,7 +29,7 @@
 #endif
 
 #if defined PANEL_POWER
-#define VER 0x02
+#define VER 0x05
 #endif
 
 #if defined SETTER
@@ -54,7 +54,7 @@
 
 #endif
 #elif defined PANEL_POWER
-#define TYPE 0x20 // 取电面板
+#define TYPE 0x02 // 取电面板|插卡取电
 
 #endif
 

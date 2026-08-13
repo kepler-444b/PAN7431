@@ -42,7 +42,7 @@ int main(void)
 
     app_protocol_init();
     PAN211_RxStart();
-    PAN211_SetChannel(app_get_reg()->channel);  
+    PAN211_SetChannel(app_get_reg()->channel);
     app_jump_device();
 
     while (1) {

@@ -107,12 +107,20 @@ typedef struct
     bool bl_close; // 关闭背光
     bool bl_open;  // 开启背光
     bool bl_status;
-    // bool bl_tag;
+    uint16_t bl_delay_count; // 关闭背光
 
-    bool all_close;      // 总关状态
+    bool bl_close_no;           // 关闭背光
+    bool bl_open_no;            // 开启背光
+    uint16_t bl_no_delay_count; // 关闭背光
+
+    bool all_close_no; // 总关状态(无需唤醒)
+    bool all_close_no_last;
+
+    bool all_close;      // 总关状态(需要唤醒)
     bool all_close_last; // 上次总关状态
 
-    uint16_t bl_delay_count; // 关闭背光
+    bool all_off_black; // 总关,且关闭所有背光灯
+    bool all_dim_black; // 总关,且调暗所有背光灯
 
     bool check_w_led;           // 检测 LED
     uint16_t check_w_led_count; // 延时检测 LED
@@ -156,9 +164,11 @@ typedef enum {
 } led_statue_e;
 
 typedef enum {
-    BACKLIGHT_DIM, // 调暗背光
-    BACKLIGHT_OFF, // 关闭背光
-    BACKLIGHT_ON   // 开启背光
+    BACKLIGHT_DIM,     // 调暗背光
+    BACKLIGHT_OFF,     // 总关关闭背光
+    BACKLIGHT_OFF_DIM, // 总关调暗背光
+    BACKLIGHT_ON       // 开启背光
+
 } backlight_mode_e;
 
 typedef enum {
@@ -206,6 +216,7 @@ static void panel_night_light(FUNC_PARAMS);
 static common_panel_t my_common_panel;
 static adc_value_t my_adc_value;
 static bool save_led_status[CONFIG_NUMBER];
+static bool seve_key_status[CONFIG_NUMBER];
 
 void panel_device_init(void)
 {
@@ -309,8 +320,9 @@ static void process_panel_adc(ADC_PARAMS)
 
             const panel_cfg_t *temp_cfg = app_get_panel_cfg();
             // 外层根据条件设置是否允许翻转
-            bool is_toggle   = true;
-            bool special_key = (BIT2(temp_cfg[i].perm) && !BIT4(temp_cfg[i].perm)); // 特殊按键
+            bool is_toggle = true;
+
+            bool special_key = (BIT2(temp_cfg[i].perm) && !BIT4(temp_cfg[i].perm) && (temp_cfg[i].func != ALL_CLOSE && temp_cfg[i].func != ALL_ON_OFF));
             if ((temp_common->all_close) && !special_key) {
                 // 在"总关"状态下且不是特殊按键,则不反转状态
                 is_toggle = false;
@@ -383,10 +395,10 @@ static void process_panel_adc(ADC_PARAMS)
 // 处理面板按键映射关系
 static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t main_key, uint8_t slave_key, bool is_toggle)
 {
-    APP_PRINTF("cmd_idx:%d main_key:%d slave_key:%d\n", cmd_idx, main_key, slave_key);
+    // APP_PRINTF("cmd_idx:%d main_key:%d slave_key:%d\n", cmd_idx, main_key, slave_key);
 
     bool is_special = temp_status[cmd_idx].r_short; // 如果当前按键的继电器处于"短开"状态,则标记为"特殊命令"
-
+    APP_PRINTF("is_toggle:%d\n", is_toggle);
     if (is_toggle) { // 切换按键状态
         temp_status[main_key].k_status ^= 1;
         if (slave_key != 0xFF) { // 0xFF 表示没有从键
@@ -401,7 +413,7 @@ static void panel_key_map(panel_status_t *temp_status, uint8_t cmd_idx, uint8_t 
 
     // 发送命令
     app_send_cmd(cmd_idx, (is_special ? 0x00 : temp_status[main_key].k_status), PANEL_HEAD, (is_special ? SPECIAL_CMD : COMMON_CMD));
-
+    APP_PRINTF(" temp_status[main_key].k_status:%d\n", temp_status[main_key].k_status);
     temp_status[main_key].k_press = true;
     if (slave_key != 0xFF) {
         temp_status[slave_key].k_press = true;
@@ -426,9 +438,11 @@ static void panel_proce_cmd(void *arg)
 
 static void process_exe_status(TIMER_PARAMS)
 {
+    // 进入总关模式(需要唤醒) =======================================================================================
     if (temp_common->all_close != temp_common->all_close_last) {
-        if (temp_common->all_close) { // 进入总关模式
+        if (temp_common->all_close) {
             temp_common->bl_close = true;
+
         } else {
             if (!temp_common->bl_status) { // 此时,LED状态可能已经被"备用"键恢复
                 panel_exe_led_status(LOAD);
@@ -438,50 +452,111 @@ static void process_exe_status(TIMER_PARAMS)
         }
         temp_common->all_close_last = temp_common->all_close;
     }
-    if (temp_common->bl_close) { // 关闭背光灯
+    // 关闭背光灯(需要唤醒)
+    if (temp_common->bl_close) {
         temp_common->bl_delay_count++;
+        if (temp_common->bl_delay_count == 1000) { // 开始关闭背光灯
 
-        if (temp_common->bl_delay_count == 1000) {
-            if (temp_common->all_close) { // 注:在计时期间,可能会取消总关,此时需要结束计时
-                panel_backlight_status(BACKLIGHT_OFF);
-            } else {
+            // 需要唤醒
+            if (temp_common->all_close) { // 注:在计时期间,可能会取消总关,此时需要结束计时cxR
+                if (temp_common->all_off_black) {
+                    panel_backlight_status(BACKLIGHT_OFF);
+                } else if (temp_common->all_dim_black) {
+                    panel_backlight_status(BACKLIGHT_OFF_DIM);
+                }
+
+            } else if (!temp_common->all_close) {
                 temp_common->bl_close       = false;
                 temp_common->bl_delay_count = 0;
             }
         }
-        if (temp_common->bl_delay_count == 4000) {
+        if (temp_common->bl_delay_count == 4000) { // 关闭指示灯
+
+            // 需要唤醒
             if (temp_common->all_close) {
                 panel_exe_led_status(SAVE);
                 panel_exe_led_status(CLOSE);
+                APP_PRINTF("temp_common->all_close_no\n");
             }
             temp_common->bl_close       = false;
             temp_common->bl_delay_count = 0;
             temp_common->bl_status      = false;
         }
     }
-
-    if (temp_common->bl_open) { // 开启背光灯
+    // 开启背光灯(无需唤醒)
+    if (temp_common->bl_open) {
         panel_backlight_status(BACKLIGHT_ON);
         temp_common->bl_open        = false;
         temp_common->bl_delay_count = 0;
         temp_common->bl_status      = true;
     }
 
+    // 进入总关模式(无需唤醒) =======================================================================================
+    if (temp_common->all_close_no != temp_common->all_close_no_last) { // 进入总关模式(无需唤醒)
+        APP_PRINTF("all_close_no:%d\n", temp_common->all_close_no);
+        if (temp_common->all_close_no) {
+            temp_common->bl_close_no = true;
+        } else {
+            panel_exe_led_status(LOAD);
+        }
+        temp_common->bl_open_no = true;
+
+        temp_common->all_close_no_last = temp_common->all_close_no;
+    }
+    // 关闭背光灯(无需唤醒)
+    if (temp_common->bl_close_no) {
+        temp_common->bl_no_delay_count++;
+        // 开始关闭背光灯
+        if (temp_common->bl_no_delay_count == 1000) {
+            if (temp_common->all_close_no) {
+                if (temp_common->all_off_black) {
+                    panel_backlight_status(BACKLIGHT_OFF);
+                } else if (temp_common->all_dim_black) {
+                    panel_backlight_status(BACKLIGHT_OFF_DIM);
+                }
+
+            } else if (!temp_common->all_close_no) { // 打断计数
+                temp_common->bl_close_no       = false;
+                temp_common->bl_no_delay_count = 0;
+            }
+        }
+        // 关闭指示灯
+        if (temp_common->bl_no_delay_count == 4000) {
+
+            if (temp_common->bl_close_no) {
+                panel_exe_led_status(SAVE);
+                panel_exe_led_status(CLOSE);
+            }
+            temp_common->bl_close_no       = false;
+            temp_common->bl_no_delay_count = 0;
+        }
+    }
+    // 开启背光灯(无需唤醒)
+    if (temp_common->bl_open_no) {
+        panel_backlight_status(BACKLIGHT_ON);
+        temp_common->bl_open_no        = false;
+        temp_common->bl_no_delay_count = 0;
+    }
+
     if (temp_common->check_w_led) { // 检查白灯个数
         if (++temp_common->check_w_led_count >= 1000) {
-            bool has_w_led_on         = false;
-            const uint8_t sim_key_num = app_get_sim_key_number();
-            for (uint8_t i = 0; i < sim_key_num; i++) {
+            bool has_w_led_on = false;
+            // const uint8_t sim_key_num = app_get_sim_key_number();
+            for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
                 if (temp_status[i].w_cur) {
                     has_w_led_on = true;
                     break;
                 }
             }
             if (!has_w_led_on) {
-                if (!my_common_panel.all_close) {
+                if (!my_common_panel.all_close && !my_common_panel.all_close_no) {
                     panel_backlight_status(BACKLIGHT_DIM);
                 } else if (my_common_panel.all_close) {
-                    panel_backlight_status(BACKLIGHT_OFF);
+                    if (my_common_panel.all_off_black) {
+                        panel_backlight_status(BACKLIGHT_OFF);
+                    } else if (my_common_panel.all_dim_black) {
+                        panel_backlight_status(BACKLIGHT_OFF_DIM);
+                    }
                 }
             }
             temp_common->check_w_led       = false;
@@ -537,11 +612,9 @@ static void process_exe_status(TIMER_PARAMS)
             }
         }
         if (p_status->w_cur != p_status->w_last) { // 更新白灯状态
-
 #if defined PANEL_A20
             APP_SET_GPIO(p_cfg->led_w_pin, p_status->w_cur);
-
-            if (!my_common_panel.all_close) { // 如果是在"总关状态"下,则不再点亮背光灯
+            if (!my_common_panel.all_close && !my_common_panel.all_close_no) { // 如果是在"总关状态"下,则不再点亮背光灯
                 app_set_pwm_hw_fade(p_cfg->led_y_pin, p_status->w_cur ? 0 : 2400, 500, 5, 1);
             }
 #else
@@ -572,13 +645,16 @@ static void panel_exe_led_status(led_statue_e type)
     for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
         switch (type) {
             case CLOSE:
-                my_panel_status[i].w_cur = false;
+                my_panel_status[i].w_cur    = false;
+                my_panel_status[i].k_status = false;
                 break;
             case LOAD:
-                my_panel_status[i].w_cur = save_led_status[i];
+                my_panel_status[i].w_cur    = save_led_status[i];
+                my_panel_status[i].k_status = seve_key_status[i];
                 break;
             case SAVE:
                 save_led_status[i] = my_panel_status[i].w_cur;
+                seve_key_status[i] = my_panel_status[i].k_status;
                 break;
         }
     }
@@ -589,7 +665,7 @@ static void panel_backlight_status(backlight_mode_e mode)
     const panel_cfg_t *p_cfg = app_get_panel_cfg();
 
     switch (mode) {
-        case BACKLIGHT_DIM: {
+        case BACKLIGHT_DIM: { // 没有白灯亮的时候,将整体背光调暗
             APP_PRINTF("BACKLIGHT_DIM\n");
 #if defined PANEL_A20
 
@@ -602,9 +678,8 @@ static void panel_backlight_status(backlight_mode_e mode)
 #else
             app_set_pwm_hw_fade(PWM_PA8, 500, 3000, 5, 1);
 #endif
-
         } break;
-        case BACKLIGHT_ON:
+        case BACKLIGHT_ON: // 有白灯亮的时候,将整体背光调亮
             APP_PRINTF("BACKLIGHT_ON\n");
 #if defined PANEL_A20
             for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
@@ -616,7 +691,7 @@ static void panel_backlight_status(backlight_mode_e mode)
             app_set_pwm_hw_fade(PWM_PA8, 2400, 3000, 5, 1);
 #endif
             break;
-        case BACKLIGHT_OFF:
+        case BACKLIGHT_OFF: // "总关"下,关闭所有背光
             APP_PRINTF("BACKLIGHT_OFF\n");
 #if defined PANEL_A20
             for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
@@ -624,6 +699,17 @@ static void panel_backlight_status(backlight_mode_e mode)
             }
 #else
             app_set_pwm_hw_fade(PWM_PA8, 0, 3000, 5, 1);
+#endif
+            break;
+
+        case BACKLIGHT_OFF_DIM: // 总关下,调暗所有背光
+#if defined PANEL_A20
+            for (uint8_t i = 0; i < CONFIG_NUMBER; i++) {
+                app_set_pwm_hw_fade(p_cfg[i].led_y_pin, 500, 3000, 5, 1);
+            }
+#else
+            app_set_pwm_hw_fade(PWM_PA8, 500, 3000, 5, 1);
+
 #endif
             break;
         default:
@@ -666,6 +752,19 @@ static void panel_data_cb(frame_t *data, data_source_e data_src)
         const panel_cfg_t *temp_cfg = app_get_panel_cfg();
         process_cmd_check(data, temp_cfg, my_panel_status, data_src);
     }
+    // 产测面板,接收过零测试信号
+    if (data->data[0] == PANEL_TEST_CMD) {
+#if defined PANEL_DIS
+        return;
+#endif
+        static bool status = false;
+
+        status = !status;
+        zero_set_gpio_check(PB1, status);
+        zero_set_gpio_check(PA5, status);
+        zero_set_gpio_check(PA6, status);
+        zero_set_gpio_check(PB0, status);
+    }
 }
 
 // 查找本面板中是否有相同的按键
@@ -679,6 +778,7 @@ static bool panel_find_sim_key(frame_t *data)
 
         bool special     = (BIT2(temp_cfg[i].perm) && !BIT4(temp_cfg[i].perm));
         bool group_match = (data->data[3] == temp_cfg[i].group);
+
         if (!special) { // 如果不是特殊按键,跳过
             continue;
         }
@@ -698,17 +798,27 @@ static bool panel_find_sim_key(frame_t *data)
 static void process_cmd_check(FUNC_PARAMS)
 {
     bool skip_outer = false;
-    if (my_common_panel.all_close == true) { // 当前是总关模式
 
-        // 如果是勾选了"备用"且没有勾选"只开",这种按键为特殊按键(立即执行动作,而不唤醒任何面板)
-        bool src_special_key = (BIT2(data->data[6]) && !BIT4(data->data[6]));
+    if (my_common_panel.all_close_no == true) { // 当前处于"总关"模式,且无需唤醒,任意键退出该模式
+        APP_PRINTF("all_close_no\n");
+        my_common_panel.all_close_no      = false;
+        my_common_panel.all_close_no_last = false;
+        my_common_panel.bl_open_no        = true; // 开启背光(无需唤醒)
+
+        panel_exe_led_status(LOAD); // 恢复被总关(无需唤醒)关闭的指示灯
+    }
+    if (my_common_panel.all_close == true) { // 当前是总关模式
+        APP_PRINTF("all_close\n");
+
+        // 如果是勾选了"备用"且没有勾选"只开",且该按键不是"总关"或"总开关",这种按键为特殊按键(立即执行动作,而不唤醒任何面板)
+        bool src_special_key = (BIT2(data->data[6]) && !BIT4(data->data[6]) && (data->data[1] != ALL_CLOSE && data->data[1] != ALL_ON_OFF));
         bool my_special_key  = panel_find_sim_key(data);
 
         if (src_special_key && !my_special_key) { // 其他面板的特殊按键,且自身没有相同的按键
             return;
         }
 
-        if (src_special_key && my_special_key) { // 自身触发的特殊按键,或其他面板的特殊按键但与自身双控
+        if (src_special_key && my_special_key) { // 自身触发的是特殊按键,或其他面板的特殊按键但与自身双控
             if (!my_common_panel.bl_status) {
                 panel_exe_led_status(LOAD);
             }
@@ -723,12 +833,16 @@ static void process_cmd_check(FUNC_PARAMS)
         // 来自任意键(唤醒),关闭已经打开的夜灯
         if (!skip_outer) {
 
+            APP_PRINTF("wake up\n");
             my_common_panel.all_close   = false; // 唤醒(执行"背光总关")
             my_common_panel.check_w_led = true;  // 检查白灯
+
             return;
         }
     }
-    my_common_panel.bl_open     = true; // 开启背光
+    APP_PRINTF("no wake up\n");
+    // my_common_panel.bl_open_no  = true; // 开启背光(无需唤醒)
+    my_common_panel.bl_open     = true; // 开启背光(需要唤醒)
     my_common_panel.check_w_led = true; // 检查白灯
 
     switch (data->data[1]) {
@@ -736,6 +850,9 @@ static void process_cmd_check(FUNC_PARAMS)
             panel_all_close(FUNC_ARGS);
             break;
         case ALL_ON_OFF:
+#if defined PANEL_DIS
+            return;
+#endif
             panel_all_on_off(FUNC_ARGS);
             break;
         case CLEAN_ROOM:
@@ -849,7 +966,8 @@ static void panel_event_handler(event_type_e event, void *params)
 }
 static void panel_power_status(void)
 {
-    my_common_panel.bl_open     = true; // 开启背光
+    my_common_panel.bl_open_no  = true; // 开启背光(无需唤醒)
+    my_common_panel.bl_open     = true; // 开启背光(需要唤醒)
     my_common_panel.check_w_led = true; // 检查开启的白灯
     PROCESS_OUTER(app_get_panel_cfg(), my_panel_status, {
         if (!BIT3(p_cfg->perm)) {
@@ -888,11 +1006,13 @@ static void panel_power_status(void)
     my_common_panel.check_w_led = true; // 检查开启的白灯
 }
 
+// 执行插卡"迎宾"
 static void panel_insert_card(void)
 {
     panel_power_status();
 }
 
+// 执行拔卡
 static void panel_remove_card(void)
 {
     APP_PRINTF("remove_card\n");
@@ -1082,6 +1202,7 @@ static void set_panel_status(uint8_t idx, uint8_t flag, panel_action_e action)
         }
     }
 
+    // 借用继电器
     if (action == PANEL_DO_RELAY_ONLY) {
         if (BIT4(flag))
             my_panel_status[idx].r_cur = BIT0(flag);
@@ -1158,9 +1279,31 @@ static void panel_bl_close(void) // 执行背光总关(即起夜模式 或 唤�
 
 static void panel_all_close(FUNC_PARAMS) // 总关
 {
-    if (BIT1(data->data[6])) { // 如果勾选了"总关背光"
-        my_common_panel.all_close = true;
+    if (BIT1(data->data[6]) && !BIT2(data->data[6])) { // 如果勾选了"总关背光",且没有勾选"备用"
+        // 关闭背光灯,进入总关状态(需要唤醒)
+        my_common_panel.all_off_black = true;
+        my_common_panel.all_close     = true;
     }
+    if (!BIT1(data->data[6]) && BIT2(data->data[6])) { // 如果没有勾选"总关背光",且勾选了"备用"
+        // 调暗背光灯,进入总关状态(需要唤醒)
+        my_common_panel.all_dim_black = true;
+        my_common_panel.all_close     = true;
+    }
+    if (!BIT1(data->data[6]) && !BIT2(data->data[6])) { // 如果没有勾选"总关背光",且没有勾选"备用"
+        // 调暗背光灯,无需唤醒
+        if (my_common_panel.all_close_no == false) {
+            my_common_panel.all_close_no  = true;
+            my_common_panel.all_dim_black = true;
+        }
+    }
+    if (BIT1(data->data[6]) && BIT2(data->data[6])) { // 如果勾选了"总关背光",且勾选了"备用"
+        // 关闭背光灯,无需唤醒
+        if (my_common_panel.all_close_no == false) {
+            my_common_panel.all_close_no  = true;
+            my_common_panel.all_off_black = true;
+        }
+    }
+
     PROCESS_OUTER(temp_cfg, temp_status, {
         if (!BIT5(p_cfg->perm))
             continue; // 跳过没有勾选"总关"的按键
@@ -1226,8 +1369,31 @@ static void panel_all_close(FUNC_PARAMS) // 总关
 
 static void panel_all_on_off(FUNC_PARAMS) // all_on_off
 {
-    if (BIT1(data->data[6]) && !data->data[2]) { // 如果勾选了"背光总关"
-        my_common_panel.all_close = true;
+    if (!data->data[2]) {                                  // 为"总开关"的"关"操作
+        if (BIT1(data->data[6]) && !BIT2(data->data[6])) { // 如果勾选了"总关背光",且没有勾选"备用"
+            // 关闭背光灯,进入总关状态(需要唤醒)
+            my_common_panel.all_off_black = true;
+            my_common_panel.all_close     = true;
+        }
+        if (!BIT1(data->data[6]) && BIT2(data->data[6])) { // 如果没有勾选"总关背光",且勾选了"备用"
+            // 调暗背光灯,进入总关状态(需要唤醒)
+            my_common_panel.all_dim_black = true;
+            my_common_panel.all_close     = true;
+        }
+        if (!BIT1(data->data[6]) && !BIT2(data->data[6])) { // 如果没有勾选"总关背光",且没有勾选"备用"
+            // 正常操作,无需唤醒
+            if (my_common_panel.all_close_no == false) {
+                my_common_panel.all_close_no  = true;
+                my_common_panel.all_dim_black = true;
+            }
+        }
+        if (BIT1(data->data[6]) && BIT2(data->data[6])) {
+            // 正常操作,无需唤醒,但需要全灭背光
+            if (my_common_panel.all_close_no == false) {
+                my_common_panel.all_close_no  = true;
+                my_common_panel.all_off_black = true;
+            }
+        }
     }
     PROCESS_OUTER(temp_cfg, temp_status, {
         // 是否勾选"总开关"
@@ -1332,10 +1498,7 @@ static void panel_all_on_off(FUNC_PARAMS) // all_on_off
 static void panel_clean_room(FUNC_PARAMS)
 {
     PROCESS_OUTER(temp_cfg, temp_status, {
-        bool func_match = (p_cfg->func == CLEAN_ROOM); // 清理勿扰不匹配双控分组
-        if (!func_match)
-            continue;
-        if (data->data[2]) { // If status is true, turn off same room's "dnd_mode"
+        if (data->data[2]) { // 如果状态是"开",则关闭自己的"勿扰"按键
             PROCESS_INNER(temp_cfg, temp_status, {
                 bool func_match_ex = (p_cfg_ex->func == DND_MODE);
                 if (!func_match_ex)
@@ -1343,6 +1506,9 @@ static void panel_clean_room(FUNC_PARAMS)
                 panel_fast_exe(W_R | (~data->data[2] & 0x01), _j);
             });
         }
+        bool func_match = (p_cfg->func == CLEAN_ROOM); // 查找自己的"清理"按键
+        if (!func_match)
+            continue;
         panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
@@ -1350,10 +1516,7 @@ static void panel_clean_room(FUNC_PARAMS)
 static void panel_dnd_mode(FUNC_PARAMS)
 {
     PROCESS_OUTER(temp_cfg, temp_status, {
-        bool func_match = (p_cfg->func == DND_MODE); // 清理勿扰不匹配双控分组
-        if (!func_match)
-            continue;
-        if (data->data[2]) { // If status is true, turn off same room's "clean_room"
+        if (data->data[2]) { // 如果状态是"开",则关闭自己的"清理"按键
             PROCESS_INNER(temp_cfg, temp_status, {
                 bool func_match_ex = (p_cfg_ex->func == CLEAN_ROOM);
 
@@ -1362,6 +1525,10 @@ static void panel_dnd_mode(FUNC_PARAMS)
                 panel_fast_exe(W_R | (~data->data[2] & 0x01), _j);
             });
         }
+
+        bool func_match = (p_cfg->func == DND_MODE); // 查找自己的"勿扰"按键
+        if (!func_match)
+            continue;
         panel_fast_exe(W_R | (data->data[2] & 0x01), _i);
     });
 }
@@ -1566,10 +1733,16 @@ static void panel_light_mode(FUNC_PARAMS)
     PROCESS_OUTER(temp_cfg, temp_status, {
         bool func_match  = (p_cfg->func == LIGHT_MODE);
         bool group_match = (data->data[3] == p_cfg->group || data->data[3] == 0xFF);
-        bool skip_group  = (data_src != THIS && data->data[3] == 0x00); // 如果是其他设备且分组为00,跳过(不双控)
 
-        // 如果主控设备勾选了"只开"+"备用",被控设备勾选了"只开",则无条件双控
-        bool special = ((BIT2(data->data[6]) && BIT4(data->data[6])) && BIT4(p_cfg->perm));
+        bool skip_group = false;
+#ifndef PANEL_DIS // 产生测固件,测试距离,即便是双控分组为 0x00,也不跳过,执行双控
+
+        skip_group = (data_src != THIS && data->data[3] == 0x00); // 如果是其他设备且分组为00,跳过(不双控)
+#endif
+        // 如果主控设备勾选了"只开"+"备用",被控设备勾选了"只开"且没有勾选"备用"且"总关区域相同",则无条件双控
+        bool special = ((BIT2(data->data[6]) && BIT4(data->data[6])) &&
+                        BIT4(p_cfg->perm) && (!BIT2(p_cfg->perm)) &&
+                        (H_BIT(data->data[4]) == 0xF || H_BIT(data->data[4]) == H_BIT(p_cfg->area)));
 
         if (special && func_match) {
             panel_fast_exe(W_R | (data->data[2] & 0x01), _i);

@@ -190,6 +190,12 @@ void app_rf_rx_check(rf_frame_t *buf)
             uint16_t delay_forward = BASE_DELAY + reg->zuwflag * 10; // 转发延时 = 基础延时 + (组网标识 * 10)
             bool need_forward      = true;
             if (cmd == ForwardData) {
+
+#if defined PANEL_DIS // 测试距离固件,不接收转发数据
+                // APP_PRINTF("PANEL_DIS\n"); 
+                // APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
+                return;
+#endif
                 // Compare with last forwarded data to avoid duplication
                 if (memcmp(last_data, data_p, data_len) == 0) {
                     APP_PRINTF("same data\n");
@@ -398,17 +404,29 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     // 发送给自己,加一个按键号
     send_frame.data[8] = key_number;
     send_frame.length  = 9;
+
     APP_PRINTF_BUF("send_frame", send_frame.data, send_frame.length);
     app_eventbus_publish(EVENT_PANEL_RX_MY, &send_frame);
+
     // 发送给其他设备,去掉按键号
     send_frame.length = 8;
-
     static rf_frame_t rf_tx;
     reg_t *temp_reg = app_get_reg();
     app_creat_frame(&rf_tx, SourceData, temp_reg);
-    rf_tx.rf_data[10] = send_frame.length;
-    memcpy(&rf_tx.rf_data[11], send_frame.data, send_frame.length);
 
+    rf_tx.rf_data[10] = send_frame.length;
+
+#if defined PANEL_TEST
+
+    if (key_number == 1) { // 过零测试
+        uint8_t panel_test[8] = {0xB1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        memcpy(&rf_tx.rf_data[11], panel_test, sizeof(panel_test));
+    } else {
+        memcpy(&rf_tx.rf_data[11], send_frame.data, send_frame.length);
+    }
+#else
+    memcpy(&rf_tx.rf_data[11], send_frame.data, send_frame.length);
+#endif
     uint8_t *data_p  = &rf_tx.rf_data[11];
     uint8_t data_len = rf_tx.rf_data[10];
 
@@ -417,7 +435,7 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     rf_tx.rf_len = RF_PAYLOAD;
 
     app_rf_tx(&rf_tx, true);
-    // APP_PRINTF_BUF("send", rf_tx.rf_data, rf_tx.rf_len);
+    APP_PRINTF_BUF("send", rf_tx.rf_data, rf_tx.rf_len);
 }
 #endif
 

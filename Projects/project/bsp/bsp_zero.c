@@ -3,9 +3,9 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define QUEUE_SIZE 12
+#define QUEUE_SIZE   12
 #define ZERO_TIMEOUT 40 // 40ms
-#define DELAY_TIME 5    // 5ms
+#define DELAY_TIME   5  // 5ms
 
 typedef struct {
     gpio_pin_t pin;
@@ -16,8 +16,8 @@ static gpio_ctrl_t queue[QUEUE_SIZE];
 static volatile uint8_t head = 0;
 static volatile uint8_t tail = 0;
 
-static gpio_ctrl_t pending_cmd = {0};
-static volatile bool is_delaying = false;
+static gpio_ctrl_t pending_cmd       = {0};
+static volatile bool is_delaying     = false;
 static volatile uint16_t delay_count = 0;
 
 static volatile bool zero_failed = false;
@@ -33,10 +33,10 @@ void bsp_zero_init(void)
     // Initialize external interrupt
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING;
+    GPIO_InitStruct.Pull  = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Pin = GPIO_PIN_9;
+    GPIO_InitStruct.Pin   = GPIO_PIN_9;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
     HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
     HAL_NVIC_SetPriority(EXTI4_15_IRQn, 3, 2);
@@ -44,11 +44,11 @@ void bsp_zero_init(void)
     // Initialize Timer16
     uint32_t prescaler = (HAL_RCC_GetPCLK1Freq() / 1000) - 1; // 1 ms overflow once
     __HAL_RCC_TIM16_CLK_ENABLE();
-    Timer16.Instance = TIM16;
-    Timer16.Init.Period = 1;
-    Timer16.Init.Prescaler = prescaler;
-    Timer16.Init.ClockDivision = 0;
-    Timer16.Init.CounterMode = TIM_COUNTERMODE_UP;
+    Timer16.Instance               = TIM16;
+    Timer16.Init.Period            = 1;
+    Timer16.Init.Prescaler         = prescaler;
+    Timer16.Init.ClockDivision     = 0;
+    Timer16.Init.CounterMode       = TIM_COUNTERMODE_UP;
     Timer16.Init.RepetitionCounter = 0;
     Timer16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
     if (HAL_TIM_Base_Init(&Timer16) != HAL_OK)
@@ -64,7 +64,7 @@ void EXTI4_15_IRQHandler(void)
 {
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);
     zero_timeout_count = 0;
-    zero_failed = false;
+    zero_failed        = false;
 
     if (!is_delaying && queue_pop(&pending_cmd)) {
         is_delaying = true;
@@ -106,13 +106,26 @@ void zero_set_gpio(const gpio_pin_t pin, bool status)
     }
 }
 
+void zero_set_gpio_check(const gpio_pin_t pin, bool status)
+{
+    gpio_ctrl_t cmd = {.pin = pin, .status = status};
+    if (zero_failed) {
+        APP_PRINTF("zero_failed\n");
+        return;
+    } else {
+        if (!queue_push(cmd)) {
+            APP_PRINTF("zero queue full!\n");
+        }
+    }
+}
+
 static bool queue_push(gpio_ctrl_t cmd)
 {
     uint8_t next = (tail + 1) % QUEUE_SIZE;
     if (next == head)
         return false;
     queue[tail] = cmd;
-    tail = next;
+    tail        = next;
     return true;
 }
 
