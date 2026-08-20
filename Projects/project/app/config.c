@@ -98,11 +98,19 @@ void app_load_config(cfg_addr addr)
                 APP_PRINTF("reg is null\n");
                 memset(new_data, 0, sizeof(new_data));
                 // default reg
+
+#if defined PANEL_TEST_QUICK        // 产测快装盒子,需要默认100信道,0000房号
+                new_data[0] = 0x64; // channel
+                new_data[1] = 0x00; // zuwflag
+                new_data[2] = 0x00; // room_h
+                new_data[3] = 0x00; // room_l
+#else
                 new_data[0] = 0x00; // channel
                 new_data[1] = 0x00; // zuwflag
                 new_data[2] = 0x01; // room_h
                 new_data[3] = 0x01; // room_l
                 new_data[4] = 0x01; // forward_en
+#endif
 #if defined PANEL
                 new_data[5] = sim_key_number; // key_number
 #endif

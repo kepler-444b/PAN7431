@@ -749,6 +749,11 @@ static void panel_data_cb(frame_t *data, data_source_e data_src)
     if (data->data[0] == PANEL_HEAD) {
 
         // APP_PRINTF_BUF("panel_rx", data->data, data->length);
+        if ((data->data[2] == 0x80) || (data->data[2] == 0x81) || (data->data[2] == 0x82) ||
+            (data->data[2] == 0x83) || (data->data[2] == 0x84)) {
+            // 过滤温控器的命令
+            return;
+        }
         const panel_cfg_t *temp_cfg = app_get_panel_cfg();
         process_cmd_check(data, temp_cfg, my_panel_status, data_src);
     }

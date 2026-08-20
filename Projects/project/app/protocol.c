@@ -192,7 +192,7 @@ void app_rf_rx_check(rf_frame_t *buf)
             if (cmd == ForwardData) {
 
 #if defined PANEL_DIS // 测试距离固件,不接收转发数据
-                // APP_PRINTF("PANEL_DIS\n"); 
+                // APP_PRINTF("PANEL_DIS\n");
                 // APP_PRINTF_BUF("buf", buf->rf_data, buf->rf_len);
                 return;
 #endif
@@ -416,6 +416,7 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
 
     rf_tx.rf_data[10] = send_frame.length;
 
+/* ====================================== 产测固件 ======================================*/
 #if defined PANEL_TEST
 
     if (key_number == 1) { // 过零测试
@@ -424,16 +425,24 @@ void app_send_cmd(uint8_t key_number, uint8_t key_status, uint8_t frame_head, ui
     } else {
         memcpy(&rf_tx.rf_data[11], send_frame.data, send_frame.length);
     }
+#elif defined PANEL_TEST_QUICK
+
+    uint8_t panel_test[17] = {0x00, 0x00, 0xFF, 0xFF, 0x08, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x06, 0xDE, 0x00, 0xEE, 0x15, 0x01, 0x01};
+    panel_test[15]         = key_status;     // 此为状态位,根据按键的状态切换
+    panel_test[16]         = key_number + 1; // 此为地址为,由按键的位号决定
+    memcpy(&rf_tx.rf_data, panel_test, sizeof(panel_test));
+    rf_tx.rf_len = RF_PAYLOAD;
+    APP_PRINTF_BUF("tx_buf:", rf_tx.rf_data, RF_PAYLOAD);
+    app_rf_tx(&rf_tx, true);
+    return;
 #else
+    /* ====================================== 正常灯控 ======================================*/
     memcpy(&rf_tx.rf_data[11], send_frame.data, send_frame.length);
 #endif
     uint8_t *data_p  = &rf_tx.rf_data[11];
     uint8_t data_len = rf_tx.rf_data[10];
-
     memcpy(last_data, data_p, data_len);
-
     rf_tx.rf_len = RF_PAYLOAD;
-
     app_rf_tx(&rf_tx, true);
     APP_PRINTF_BUF("send", rf_tx.rf_data, rf_tx.rf_len);
 }

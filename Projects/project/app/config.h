@@ -8,10 +8,10 @@
 #if defined PANEL
 #if defined PANEL_A20
 
-#define VER 0x21 // A20面板软件版本 V2.1
+#define VER 0x22 // A20面板软件版本 V2.1
 
 #else
-#define VER 0x21 // A18面板软件版本 V2.1
+#define VER 0x22 // A18面板软件版本 V2.1
 
 #endif
 #endif
